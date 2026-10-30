@@ -63,8 +63,11 @@ jobs:
           VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy_key
+          # A key pasted from Windows can carry CR characters, which ssh rejects.
+          printf '%s\n' "$VM_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           echo "$VM_HOST $VM_HOST_KEY" > ~/.ssh/known_hosts
+          # Fails early if the secret isn't a valid key. The fingerprint is public.
+          ssh-keygen -y -f ~/.ssh/deploy_key | ssh-keygen -lf -
           # The VM only lets this key run deploy.sh, whatever command is sent.
-          ssh -i ~/.ssh/deploy_key "azureuser@$VM_HOST"
+          ssh -T -i ~/.ssh/deploy_key "azureuser@$VM_HOST"
