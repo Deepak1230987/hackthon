@@ -89,6 +89,7 @@ export type Step = {
   attempt: number;
   status: StepStatus;
   durationMs?: number;
+  implemented?: boolean;
   events: RunEvent[];
 };
 

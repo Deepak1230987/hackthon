@@ -5,7 +5,7 @@ import { useRef, useState, type DragEvent, type FormEvent } from "react";
 
 import { ApiRequestError, MAX_PDF_MB, uploadDocument } from "@/lib/api";
 
-const LANGUAGES = [{ code: "hi-IN", label: "हिन्दी", english: "Hindi" }];
+const LANGUAGES = [{ code: "hi", label: "हिन्दी", english: "Hindi" }];
 
 function validate(file: File): string | null {
   const isPdf =

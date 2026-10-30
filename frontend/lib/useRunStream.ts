@@ -15,6 +15,17 @@ import {
 const MAX_SSE_FAILURES = 3;
 const POLL_INTERVAL_MS = 3000;
 
+// Retrying can't fix a 4xx, except for a timeout or a rate limit.
+function isFinalRejection(status: number | undefined): boolean {
+  return (
+    status !== undefined &&
+    status >= 400 &&
+    status < 500 &&
+    status !== 408 &&
+    status !== 429
+  );
+}
+
 export function useRunStream(runId: string): {
   view: RunView;
   connection: ConnectionState;
@@ -39,8 +50,8 @@ export function useRunStream(runId: string): {
         return !isTerminal(run.status);
       } catch (e) {
         if (stopped) return false;
-        if (e instanceof ApiRequestError && e.httpStatus === 404) {
-          dispatch({ type: "not_found", error: e.error });
+        if (e instanceof ApiRequestError && isFinalRejection(e.httpStatus)) {
+          dispatch({ type: "rejected", error: e.error });
           setLoaded(true);
           return false;
         }

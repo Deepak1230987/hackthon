@@ -505,13 +505,15 @@ Five new runs per IP per 10 minutes, and 20 STT calls per run. `client_hash` is 
 
 ### 12.5 Run event contract
 
+`language` in every request is one of `hi`, `bn`, `mr` or `en`.
+
 The frontend builds the trace only from these events, so a refresh, an SSE replay and polling all give the same view. `seq` is the SSE `id`. `EventSource` drops named events it hasn't subscribed to, so any new type must also be added to `RUN_EVENT_TYPES` in `frontend/lib/types.ts`.
 
 | Event | Payload | Meaning |
 |---|---|---|
 | `run_status` | `{status, error?}` | Every status change. `completed`, `partial` and `failed` are terminal: the server closes the stream after sending one. `error` uses the 12.2 format |
 | `node_started` | `{node}` | A node began. Emit it again on retry or resume |
-| `node_finished` | `{node, duration_ms}` | A node ended normally |
+| `node_finished` | `{node, duration_ms, implemented}` | A node ended normally. `implemented: false` marks a pass-through, shown as "Not built yet" |
 | `fetch_attempt` | `{method}` | `http`, `browser` or `upload` |
 | `page_ocr` | `{page}` | |
 | `segment_done` | `{clauses}` | Clause count |
