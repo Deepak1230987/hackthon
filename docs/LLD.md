@@ -81,6 +81,7 @@ CREATE TABLE runs (
   document_id uuid REFERENCES documents,  -- null until acquired
   language text NOT NULL,
   status text NOT NULL,   -- queued running waiting_input completed partial failed
+  source jsonb NOT NULL,  -- upload path and hash, or URL; lets a queued run restart
   error_code text, llm_calls int NOT NULL DEFAULT 0,
   sarvam_chars int NOT NULL DEFAULT 0, client_hash text,
   created_at timestamptz NOT NULL DEFAULT now(), finished_at timestamptz

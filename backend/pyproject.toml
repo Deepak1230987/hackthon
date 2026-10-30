@@ -1,0 +1,33 @@
+[project]
+name = "haq-backend"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.13",
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "langgraph>=0.2.60",
+    "langgraph-checkpoint-postgres>=2.0",
+    "pgvector>=0.3",
+    "psycopg[binary,pool]>=3.2",
+    "pydantic-settings>=2.4",
+    "pymupdf>=1.24",
+    "python-multipart>=0.0.9",
+    "sqlalchemy[asyncio]>=2.0",
+    "uvicorn>=0.30",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration: needs a Postgres database with pgvector (TEST_DATABASE_URL)"]
