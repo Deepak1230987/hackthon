@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import uuid
 
 import httpx
@@ -66,7 +67,9 @@ async def test_upload_runs_to_the_end_and_stores_file_with_hash(client, storage)
 async def test_trace_shows_which_nodes_are_not_built(client):
     run_id = await upload(client, make_pdf("trace"))
     view = await wait_for_end(client, run_id)
-    finished = {s["node"]: s["implemented"] for s in view["steps"] if s["type"] == "node_finished"}
+    payloads = [e["payload"] for e in view["events"] if e["type"] == "node_finished"]
+    finished = {p["node"]: p["implemented"] for p in payloads}
+    assert all(isinstance(p["duration_ms"], int) for p in payloads)
     assert finished["acquire"] is True
     assert finished["tts"] is False
     assert len(finished) == 12
@@ -86,7 +89,8 @@ async def test_sse_replays_only_events_after_last_event_id(client):
 
     everything = parse_sse((await client.get(f"/v1/runs/{run_id}/events")).text)
     assert [int(e["id"]) for e in everything] == list(range(1, len(everything) + 1))
-    assert everything[-1]["event"] == "run_completed"
+    assert everything[-1]["event"] == "run_status"
+    assert json.loads(everything[-1]["data"]) == {"status": "completed"}
 
     rest = parse_sse(
         (await client.get(f"/v1/runs/{run_id}/events", headers={"Last-Event-ID": "5"})).text
@@ -104,7 +108,10 @@ async def test_bad_pdf_fails_with_an_event(client, content, code):
     assert view["status"] == "failed"
     assert view["error"]["code"] == code
     events = parse_sse((await client.get(f"/v1/runs/{run_id}/events")).text)
-    assert events[-1]["event"] == "run_failed"
+    last = json.loads(events[-1]["data"])
+    assert events[-1]["event"] == "run_status"
+    assert last["status"] == "failed"
+    assert last["error"]["code"] == code
 
 
 async def test_oversized_file_is_rejected(client, settings):
@@ -168,7 +175,8 @@ async def test_restart_resumes_an_interrupted_run(settings, storage):
 
     assert view["status"] == "completed"
     assert view["document"]["sha256"] == hashlib.sha256(content).hexdigest()
-    assert [e["event"] for e in events].count("run_completed") == 1
+    statuses = [json.loads(e["data"])["status"] for e in events if e["event"] == "run_status"]
+    assert statuses.count("completed") == 1
 
 
 async def test_checkpoints_are_written_to_postgres(app, client):

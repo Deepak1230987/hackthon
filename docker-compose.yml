@@ -1,0 +1,30 @@
+services:
+  api:
+    build: ./backend
+    env_file: .env
+    restart: unless-stopped
+    # Reaps Chromium child processes left by the Playwright fetcher.
+    init: true
+    shm_size: 512m
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

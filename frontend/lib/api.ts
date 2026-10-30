@@ -1,0 +1,71 @@
+import type { ApiError, RunSnapshot } from "./types";
+
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/+$/, "");
+
+export const MAX_PDF_MB = 50;
+
+export class ApiRequestError extends Error {
+  readonly error: ApiError;
+  readonly httpStatus?: number;
+
+  constructor(error: ApiError, httpStatus?: number) {
+    super(error.message);
+    this.error = error;
+    this.httpStatus = httpStatus;
+  }
+}
+
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, init);
+  } catch {
+    throw new ApiRequestError({
+      code: "NETWORK",
+      message: "We couldn't reach Haq. Check your connection and try again.",
+      action: "retry",
+    });
+  }
+  if (response.ok) return response;
+
+  const body = await response.json().catch(() => null);
+  throw new ApiRequestError(
+    body?.error ?? {
+      code: response.status === 413 ? "FILE_TOO_LARGE" : "SERVER_ERROR",
+      message:
+        response.status === 413
+          ? `This file is larger than ${MAX_PDF_MB} MB. Upload a smaller file.`
+          : "Something went wrong on our side. Please try again.",
+      action: "retry",
+    },
+    response.status,
+  );
+}
+
+export async function uploadDocument(
+  file: File,
+  language: string,
+): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("language", language);
+  const response = await request("/v1/documents", {
+    method: "POST",
+    body: form,
+  });
+  const { run_id } = (await response.json()) as { run_id: string };
+  return run_id;
+}
+
+export async function fetchRun(runId: string): Promise<RunSnapshot> {
+  const response = await request(`/v1/runs/${encodeURIComponent(runId)}`, {
+    cache: "no-store",
+  });
+  return (await response.json()) as RunSnapshot;
+}
+
+export function runEventsUrl(runId: string): string {
+  return `${API_URL}/v1/runs/${encodeURIComponent(runId)}/events`;
+}

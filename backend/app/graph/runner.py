@@ -57,7 +57,6 @@ class RunRunner:
                 await self._fail(run_id, "INTERNAL_ERROR", "Something went wrong.", "retry")
             else:
                 await self._set_status(run_id, "completed", finished=True)
-                await self._deps.events.emit(run_id, "run_completed")
 
     async def _invoke(self, run_id: str, language: str, source: SourceRequest) -> None:
         config = {"configurable": {"thread_id": run_id}}
@@ -69,17 +68,23 @@ class RunRunner:
         )
 
     async def _fail(self, run_id: str, code: str, message: str, action: str | None) -> None:
-        await self._set_status(run_id, "failed", finished=True, error_code=code)
-        await self._deps.events.emit(
-            run_id, "run_failed", {"code": code, "message": message, "action": action, "details": {}}
-        )
+        error = {"code": code, "message": message, "action": action, "details": {}}
+        await self._set_status(run_id, "failed", finished=True, error=error)
 
     async def _set_status(
-        self, run_id: str, status: str, finished: bool = False, error_code: str | None = None
+        self,
+        run_id: str,
+        status: str,
+        finished: bool = False,
+        error: dict[str, Any] | None = None,
     ) -> None:
-        values: dict[str, Any] = {"status": status, "error_code": error_code}
+        values: dict[str, Any] = {"status": status, "error_code": error["code"] if error else None}
         if finished:
             values["finished_at"] = datetime.now(UTC)
         async with self._deps.sessions() as session:
             await session.execute(update(Run).where(Run.id == run_id).values(**values))
             await session.commit()
+        payload: dict[str, Any] = {"status": status}
+        if error:
+            payload["error"] = error
+        await self._deps.events.emit(run_id, "run_status", payload)

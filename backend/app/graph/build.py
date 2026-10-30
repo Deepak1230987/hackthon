@@ -1,3 +1,4 @@
+import time
 from collections.abc import Awaitable, Callable
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -31,9 +32,16 @@ def _traced(name: str, node: Node, deps: Deps):
     async def run(state: RunState) -> dict:
         run_id = state["run_id"]
         await deps.events.emit(run_id, "node_started", {"node": name})
+        started = time.monotonic()
         update = await node(state, deps) or {}
         await deps.events.emit(
-            run_id, "node_finished", {"node": name, "implemented": node is not passthrough}
+            run_id,
+            "node_finished",
+            {
+                "node": name,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+                "implemented": node is not passthrough,
+            },
         )
         return update
 

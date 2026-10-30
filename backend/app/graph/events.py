@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.db.models import RunEvent
 
-TERMINAL_EVENTS = {"run_completed", "run_failed"}
+TERMINAL_STATUSES = {"completed", "partial", "failed"}
 
 _INSERT = text(
     """
@@ -18,6 +18,10 @@ _INSERT = text(
     RETURNING seq
     """
 )
+
+
+def is_terminal(event: RunEvent) -> bool:
+    return event.type == "run_status" and event.payload.get("status") in TERMINAL_STATUSES
 
 
 class EventStore:
