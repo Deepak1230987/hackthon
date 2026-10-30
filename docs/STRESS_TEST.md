@@ -52,11 +52,13 @@ Run on 30 October 2026 using a server-side web fetcher, not a browser and probab
 | 21 | **`interrupt()` re-runs a node on resume and duplicates rows or LLM calls** | Medium | **Found while writing the LLD.** Idempotent nodes with upserts |
 | 22 | **A misheard voice answer changes the eligibility outcome** | High | **Found while writing the LLD.** Parsed value is always confirmed |
 | 23 | Judge says "this is dummy data" | Critical | No seeded app data, visible provenance, live pick by the judge, labelled evaluation data in `tests/` |
-| 24 | Judge says "this is a pre-existing project" | Critical | Empty repo at start, frequent commits |
+| 24 | Judge says "this is a pre-existing project" | Critical | Only design docs in the repo at H0, no application code before it, frequent commits |
 | 25 | One member can't explain part of the code | Critical | Handovers at hours 24 and 32, and mock questions |
-| 26 | Plan is too big for 1-2 people | **Critical** | Gates, cut list, early deployment, Hindi flow by hour 24 |
+| 26 | Plan is too big for 2 people | **Critical** | Gates, cut list, early deployment, Hindi flow by hour 24 |
 | 27 | Looks like a generic "chat with PDF" | High | Demo leads with rejection and retry, clause links and abstention |
 | 28 | Wrong advice harms a real citizen | High | "Appears to meet" wording, official source link, not-legal-advice notice |
+| 29 | Judge says "this demo is pre-recorded" | Critical | Live public URL, judge picks the document, no canned outputs in the app, video shown only as the submission video |
+| 30 | AI coding tools are ruled "unauthorised assistance" | Critical | Ask organisers in task 0.1 and follow their ruling before writing more code |
 
 **Still open:** items 4 and 10 can only be measured on the real system (by hour 30), and item 1 can only be settled from the VM (by hour 3).
 

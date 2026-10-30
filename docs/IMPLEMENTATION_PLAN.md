@@ -4,10 +4,11 @@
 
 ## 1. How to use this plan
 
-- Hours count from the start of the 35-hour window. Record the actual start time here: `H0 = ________`
+- Hours count from the start of the 35-hour window. `H0 = 30 Oct 2026, 7:30 PM IST`. The official window closes on 1 Nov 2026 at 11:59 PM IST (hour 52.5), so hour 34 is our own target and the time after it is buffer.
 - Each phase ends at a **gate**. If a gate is missed, use the [cut list](#5-cut-list) rather than taking time from the next phase.
-- **A** owns graph, data and AI. **B** owns voice, frontend and deployment. Working solo, you do both, in the order listed.
-- Commit small and often, and push at least hourly, as evidence the work happened in the window.
+- **A** owns graph, data and AI. **B** owns voice, frontend and deployment.
+- Commit small and often, and push at least hourly, as evidence the work happened in the window. Write no application code before H0.
+- Check decisions against the [hackathon rules](#8-hackathon-rules).
 
 ## 2. Timeline
 
@@ -17,7 +18,7 @@
 | 1. Skeleton | 3-6 | A thin system is live on a public URL |
 | 2. Documents | 6-10 | Real PDFs become reliable clauses |
 | 3. Claims | 10-15 | Verified rights card with clickable citations |
-| Sleep | 15-19 | Alternate if two people |
+| Sleep | 15-19 | Alternate |
 | 4. Eligibility and voice | 19-24 | **Full Hindi flow works on the public URL** |
 | 5. Finish | 24-28 | Usable by a stranger, with the second language |
 | 6. Harden | 28-30 | Feature freeze, failures fixed, real numbers measured |
@@ -32,7 +33,7 @@
 
 | # | Task | Owner | Done when |
 |---|---|---|---|
-| 0.1 | Ask organisers about AI coding tools and any restricted APIs | Both | Answer recorded |
+| 0.1 | Ask organisers whether AI coding tools count as authorised assistance, whether any APIs are restricted, and whether design docs written before H0 are acceptable | Both | Answers recorded |
 | 0.2 | Add `.gitignore`, `.env.example`, folder structure | A | Pushed |
 | 0.3 | Create Gemini, OpenAI and Sarvam keys. Add about ₹500 Sarvam credit, turn on Gemini billing, check limits in AI Studio | B | One successful call to each |
 | 0.4 | Choose and record exact model names from live lists | A | `.env.example` updated |
@@ -106,7 +107,7 @@
 
 ### Sleep (hours 15-19)
 
-Stagger if two people. Leave nothing long-running that needs supervision. Before sleeping, note the next task in the repo.
+Stagger sleep. Leave nothing long-running that needs supervision. Before sleeping, note the next task in the repo.
 
 ### Phase 4: Eligibility and voice (hours 19-24)
 
@@ -166,10 +167,10 @@ Stagger if two people. Leave nothing long-running that needs supervision. Before
 |---|---|---|---|
 | 7.1 | README: overview, setup, diagrams, results, env vars | A | Setup works from a fresh clone |
 | 7.2 | 6-slide deck using measured numbers | B | Reviewed by both |
-| 7.3 | Record 2-3 minute video of the live system | Both | Covers the demo script below |
-| 7.4 | Second handover and mock judge questions | Both | Each explains all data flow unaided |
+| 7.3 | Record 2-3 minute video of the live system | Both | Covers the demo script below; shows the public URL |
+| 7.4 | Second handover and mock judge questions | Both | Each explains the codebase, data flow and AI logic independently |
 | 7.5 | Fill in the submission template | Both | All links open in incognito |
-| 7.6 | **Submit by hour 34** | Both | Confirmation saved |
+| 7.6 | **Submit on the Learning Platform by hour 34** | Both | Confirmation saved |
 | 7.7 | Final hour: buffer only, no risky changes | | Tag the submitted commit |
 
 ## 4. Demo script (2-3 minutes)
@@ -184,11 +185,11 @@ Stagger if two people. Leave nothing long-running that needs supervision. Before
 | 2:15-2:35 | Out-of-scope question gets abstention | Guardrails |
 | 2:35-2:50 | Evaluation numbers and roadmap | Credibility |
 
-Self-corrections depend on the real run. Test the demo documents to find one that often triggers a rejection, and never stage or fake one. **Live judging:** run a prepared document first, then invite a judge to choose a real government PDF.
+Self-corrections depend on the real run. Test the demo documents to find one that often triggers a rejection, and never stage or fake one. **Live judging:** run a prepared document first, then invite a judge to choose a real government PDF. Always demo the running system, and never present the recording as a live app.
 
 ## 5. Cut list
 
-Apply in this order when a gate is missed. Working solo, begin at hour 15.
+Apply in this order when a gate is missed.
 
 | Order | Cut | Replacement |
 |---|---|---|
@@ -210,8 +211,11 @@ Apply in this order when a gate is missed. Working solo, begin at hour 15.
 - [ ] Public repository with README, setup, diagram and all source
 - [ ] No secrets in git history (scan before submitting)
 - [ ] 5-7 slide deck, publicly viewable
-- [ ] No mock data in application code
-- [ ] Both members can explain architecture, data flow and AI logic
+- [ ] GitHub link, deck and video submitted on the Learning Platform before the deadline
+- [ ] Social post link added (optional)
+- [ ] No mock data in application code: no seed files, hardcoded datasets or placeholder numbers
+- [ ] Both members can independently explain the codebase, data flow and AI logic
+- [ ] Both members confirmed eligible: IIT, NIT, IIIT or BITS students graduating in 2027 or later
 
 ## 7. Risk watch
 
@@ -223,3 +227,18 @@ Apply in this order when a gate is missed. Working solo, begin at hour 15.
 | Hour 28 | Freeze, regardless of what's unfinished |
 | Hour 34 | Submitted |
 | 15 minutes before judging | Check `/v1/health`, Sarvam credit, one quick full run |
+
+## 8. Hackathon rules
+
+Breaking a rule marked **DQ** means immediate disqualification.
+
+| Rule | What it means for this project |
+|---|---|
+| Teams of 2-3, no team changes | We are two people, so the plan has no extra capacity to call on |
+| Built during the Stage 1 window (**DQ** if pre-existing) | Only design docs exist before H0; all application code comes after it |
+| Submit on the Learning Platform before the deadline | GitHub link, document or deck, 2-3 minute demo video, optional social post |
+| No dummy data (**DQ**) | Documents come from live government sites or user upload. Library entries are database rows created by the real pipeline, never seed files. Labelled evaluation data and fake providers stay under `backend/tests/` |
+| Open source and boilerplate allowed | Core logic, AI integration and agent workflows are written in the window |
+| Every member can explain the project | Handovers at hours 24 and 32, plus mock questions |
+| No pre-recorded demo or mockup passed off as live (**DQ**) | Judging uses the running system. No canned responses or stored demo outputs in the app |
+| No plagiarism or unauthorised assistance (**DQ**) | Get the organisers' ruling on AI coding tools in task 0.1 |
