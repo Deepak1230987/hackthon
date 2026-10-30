@@ -36,6 +36,21 @@ test("builds steps from node events", () => {
   assert.equal(view.steps[0].events[0].type, "fetch_attempt");
 });
 
+test("records whether a finished node is really built", () => {
+  const { view } = replay([
+    event(1, "node_started", { node: "acquire" }),
+    event(2, "node_finished", { node: "acquire", implemented: true }),
+    event(3, "node_started", { node: "parse" }),
+    event(4, "node_finished", { node: "parse", implemented: false }),
+    event(5, "node_started", { node: "segment" }),
+    event(6, "node_finished", { node: "segment" }),
+  ]);
+  assert.deepEqual(
+    view.steps.map((s) => s.implemented),
+    [true, false, true],
+  );
+});
+
 test("ignores seq values already seen", () => {
   const events = [
     event(1, "node_started", { node: "acquire" }),

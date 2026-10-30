@@ -17,7 +17,7 @@ export type RunState = {
 export type RunAction =
   | { type: "event"; event: RunEvent }
   | { type: "snapshot"; run: RunSnapshot }
-  | { type: "not_found"; error: ApiError };
+  | { type: "rejected"; error: ApiError };
 
 export const initialRunState: RunState = {
   view: { status: "queued", steps: [] },
@@ -64,6 +64,7 @@ function applyToSteps(steps: Step[], event: RunEvent): Step[] {
       ...steps[index],
       status: "done",
       durationMs,
+      implemented: event.payload.implemented !== false,
     });
   }
 
@@ -134,7 +135,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       return { ...next, view };
     }
 
-    case "not_found":
+    case "rejected":
       return {
         ...state,
         view: { ...state.view, status: "failed", error: action.error },

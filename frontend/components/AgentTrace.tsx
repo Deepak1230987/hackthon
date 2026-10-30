@@ -22,6 +22,8 @@ const STATUS_STYLES: Record<StepStatus, { dot: string; label: string }> = {
   interrupted: { dot: "bg-warning", label: "Interrupted" },
 };
 
+const NOT_BUILT_STYLE = { dot: "bg-line", label: "Not built yet" };
+
 type Tone = "plain" | "good" | "warn" | "bad";
 
 const TONE_STYLES: Record<Tone, string> = {
@@ -83,7 +85,8 @@ function formatDuration(ms: number): string {
 }
 
 function StepRow({ step }: { step: Step }) {
-  const status = STATUS_STYLES[step.status];
+  const notBuilt = step.implemented === false;
+  const status = notBuilt ? NOT_BUILT_STYLE : STATUS_STYLES[step.status];
   return (
     <li className="relative pb-5 pl-6 last:pb-0">
       <span
@@ -106,7 +109,8 @@ function StepRow({ step }: { step: Step }) {
         </span>
         <span className="text-sm text-muted">
           {status.label}
-          {step.durationMs !== undefined &&
+          {!notBuilt &&
+            step.durationMs !== undefined &&
             ` · ${formatDuration(step.durationMs)}`}
         </span>
       </div>
