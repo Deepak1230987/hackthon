@@ -194,7 +194,7 @@ sequenceDiagram
 
 ### 6.1 Sources
 
-Official PDFs fetched live from government sites, documents uploaded by users, and a prepared library of real documents fetched through the same pipeline. Candidate sites are tested at hour 3. See the [stress test](STRESS_TEST.md#1-live-checks) for current access results.
+Official PDFs fetched live from government sites, documents uploaded by users, and a prepared library of real documents fetched through the same pipeline. Library entries are database rows created by that pipeline, never seed files, to satisfy the no-dummy-data rule. Candidate sites are tested at hour 3. See the [stress test](STRESS_TEST.md#1-live-checks) for current access results.
 
 ### 6.2 Classification
 
