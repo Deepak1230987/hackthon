@@ -18,6 +18,7 @@ RUN if python -c "import playwright" 2>/dev/null; then \
         playwright install --with-deps chromium; \
     fi
 
+COPY alembic.ini ./
 COPY app ./app
 
 # The folder must exist here so a new Compose volume inherits its owner.
