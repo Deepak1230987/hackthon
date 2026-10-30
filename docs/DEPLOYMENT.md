@@ -16,7 +16,7 @@ curl https://<hostname>/v1/health
 
 Caddy gets the HTTPS certificate on its first request. To update, run `git pull && docker compose up -d --build`.
 
-`backend/pyproject.toml` must list dependencies under `[project].dependencies`, and `app.main:app` must exist, for the image to build.
+`backend/pyproject.toml` must list dependencies under `[project].dependencies`, and `app.main:create_app` must exist, for the image to build and start.
 
 ## Frontend on Vercel
 
