@@ -152,6 +152,17 @@ async def test_concurrent_emits_get_unique_ordered_seq(app, client):
     assert seqs == list(range(1, len(seqs) + 1))
 
 
+async def test_status_is_not_saved_without_its_event(app, client):
+    run_id = await upload(client, make_pdf("atomic"))
+    await wait_for_end(client, run_id)
+    events = app.state.services.deps.events
+    with pytest.raises(TypeError):
+        # A payload that can't be serialised makes the event insert fail.
+        await events.emit(run_id, "run_status", {"bad": object()}, run_values={"status": "failed"})
+    view = (await client.get(f"/v1/runs/{run_id}")).json()
+    assert view["status"] == "completed"
+
+
 async def test_restart_resumes_an_interrupted_run(settings, storage):
     content = make_pdf("restart")
     storage.hold = asyncio.Event()

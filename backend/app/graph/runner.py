@@ -3,7 +3,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.db.models import Run
 from app.graph.deps import Deps, RunFailed
@@ -81,10 +81,8 @@ class RunRunner:
         values: dict[str, Any] = {"status": status, "error_code": error["code"] if error else None}
         if finished:
             values["finished_at"] = datetime.now(UTC)
-        async with self._deps.sessions() as session:
-            await session.execute(update(Run).where(Run.id == run_id).values(**values))
-            await session.commit()
         payload: dict[str, Any] = {"status": status}
         if error:
             payload["error"] = error
-        await self._deps.events.emit(run_id, "run_status", payload)
+        # Together, so a reader never sees a failed run without its error.
+        await self._deps.events.emit(run_id, "run_status", payload, run_values=values)
