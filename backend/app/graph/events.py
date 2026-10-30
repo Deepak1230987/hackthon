@@ -3,10 +3,10 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.db.models import RunEvent
+from app.db.models import Run, RunEvent
 
 TERMINAL_STATUSES = {"completed", "partial", "failed"}
 
@@ -29,12 +29,21 @@ class EventStore:
         self._sessions = sessions
         self._wakeups: dict[str, asyncio.Event] = {}
 
-    async def emit(self, run_id: str, type: str, payload: dict[str, Any] | None = None) -> int:
+    async def emit(
+        self,
+        run_id: str,
+        type: str,
+        payload: dict[str, Any] | None = None,
+        run_values: dict[str, Any] | None = None,
+    ) -> int:
+        """Record an event. `run_values` updates the run in the same transaction."""
         async with self._sessions() as session:
             # The lock lasts for this transaction, so concurrent emits can't share a seq.
             await session.execute(
                 text("SELECT pg_advisory_xact_lock(hashtext(:run_id))"), {"run_id": run_id}
             )
+            if run_values:
+                await session.execute(update(Run).where(Run.id == run_id).values(**run_values))
             result = await session.execute(
                 _INSERT, {"run_id": run_id, "type": type, "payload": json.dumps(payload or {})}
             )
