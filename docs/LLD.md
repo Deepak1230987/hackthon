@@ -502,6 +502,34 @@ On connection, the server replays events with `seq > Last-Event-ID`, then stream
 
 Five new runs per IP per 10 minutes, and 20 STT calls per run. `client_hash` is a salted IP hash, so raw IPs aren't stored.
 
+### 12.5 Run event contract
+
+The frontend builds the trace only from these events, so a refresh, an SSE replay and polling all give the same view. `seq` is the SSE `id`. `EventSource` drops named events it hasn't subscribed to, so any new type must also be added to `RUN_EVENT_TYPES` in `frontend/lib/types.ts`.
+
+| Event | Payload | Meaning |
+|---|---|---|
+| `run_status` | `{status, error?}` | Every status change. `completed`, `partial` and `failed` are terminal: the server closes the stream after sending one. `error` uses the 12.2 format |
+| `node_started` | `{node}` | A node began. Emit it again on retry or resume |
+| `node_finished` | `{node, duration_ms}` | A node ended normally |
+| `fetch_attempt` | `{method}` | `http`, `browser` or `upload` |
+| `page_ocr` | `{page}` | |
+| `segment_done` | `{clauses}` | Clause count |
+| `triage_result` | `{is_policy}` | |
+| `claim_extracted` | `{claim_id, field}` | |
+| `claim_verified` | `{claim_id}` | |
+| `claim_rejected` | `{claim_id, reason, attempt}` | |
+| `retry` | `{reason, attempt}` | |
+| `rules_compiled` | `{count}` | |
+| `needs_input` | `{field}` | Field name only |
+| `verdict` | `{outcome}` | Never input values |
+| `script_ready` | `{sentences}` | Sentence count |
+| `sentence_translated` | `{sentence_id, translator}` | |
+| `failover` | `{from, to, reason}` | |
+| `guard_failed` | `{sentence_id, reason, attempt}` | |
+| `sentence_ready` | `{sentence_id}` | |
+
+`GET /v1/runs/{id}` returns `{id, status, document, error, events: [{seq, type, payload}]}`, with `document` as `null` until acquired and every event so far in `events`. The polling fallback feeds this into the same reducer. The API must allow `ALLOWED_ORIGINS` through CORS on all routes, and an unknown run returns 404 with `RUN_NOT_FOUND`.
+
 ## 13. Frontend
 
 ### 13.1 Run view state
