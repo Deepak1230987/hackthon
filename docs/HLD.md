@@ -247,7 +247,7 @@ These are targets to measure in phase 6, not results.
 ```mermaid
 flowchart LR
     GH[GitHub repo] -->|auto deploy| V[Vercel: frontend]
-    GH -->|manual pull and compose up| VM
+    GH -->|tests pass, then deploy.sh| VM
     subgraph VM[Mumbai VM]
       C[Caddy: HTTPS] --> APP[FastAPI + workers + Playwright]
     end

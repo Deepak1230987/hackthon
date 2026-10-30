@@ -1,0 +1,70 @@
+name: CI and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:test@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - run: uv run pytest
+
+  deploy:
+    needs: [frontend, backend]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Two pushes close together must not rebuild the VM at the same time.
+    concurrency: deploy-vm
+    env:
+      VM_HOST: haq.southindia.cloudapp.azure.com
+      VM_HOST_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP5/ImtU5voGGPmpmMAayxcBNpa5OAyldHIkT4H/Urm0
+    steps:
+      - name: Run deploy.sh on the VM
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VM_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$VM_HOST $VM_HOST_KEY" > ~/.ssh/known_hosts
+          # The VM only lets this key run deploy.sh, whatever command is sent.
+          ssh -i ~/.ssh/deploy_key "azureuser@$VM_HOST"

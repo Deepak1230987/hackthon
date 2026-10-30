@@ -14,7 +14,22 @@ docker compose up -d --build
 curl https://<hostname>/v1/health
 ```
 
-Caddy gets the HTTPS certificate on its first request. To update, run `git pull && docker compose up -d --build`.
+Caddy gets the HTTPS certificate on its first request.
+
+## Automatic deployment
+
+Every push to `main` runs the [workflow](../.github/workflows/ci-deploy.yml): frontend and backend tests, then `deploy.sh` on the VM if they pass. A push that doesn't touch `backend/`, `docker-compose.yml` or `Caddyfile` doesn't restart anything. Migrations run on each backend deploy, and the old containers keep serving if the build or a migration fails.
+
+Vercel deploys the frontend from `main` by itself, without waiting for the tests.
+
+**During judging, don't push to `main`.** A backend deploy restarts the API, which interrupts running jobs and clears profiles held in memory.
+
+To set this up on a new VM:
+
+1. Clone the repository over SSH, using a read-only [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys) in `~/.ssh/id_ed25519`.
+2. Create a separate key pair for GitHub Actions. Add the public key to `~/.ssh/authorized_keys` as `command="/home/azureuser/haq/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty <public key>`.
+3. Save the private key as the `VM_SSH_KEY` repository secret on GitHub.
+4. Update `VM_HOST` and `VM_HOST_KEY` in the workflow. `ssh-keyscan -t ed25519 <hostname>` prints the host key.
 
 `backend/pyproject.toml` must list dependencies under `[project].dependencies`, and `app.main:create_app` must exist, for the image to build and start.
 
