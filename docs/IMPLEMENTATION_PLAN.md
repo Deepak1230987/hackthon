@@ -4,7 +4,7 @@
 
 ## 1. How to use this plan
 
-- Hours count from the start of the 35-hour window. Record the actual start time here: `H0 = ________`
+- Hours count from the start of the 35-hour window. `H0 = 30 Oct 2026, 7:30 PM IST`. The official window closes on 1 Nov 2026 at 11:59 PM IST (hour 52.5), so hour 34 is our own target and the time after it is buffer.
 - Each phase ends at a **gate**. If a gate is missed, use the [cut list](#5-cut-list) rather than taking time from the next phase.
 - **A** owns graph, data and AI. **B** owns voice, frontend and deployment.
 - Commit small and often, and push at least hourly, as evidence the work happened in the window. Write no application code before H0.
