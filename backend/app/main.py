@@ -39,7 +39,8 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
         pool = AsyncConnectionPool(
             settings.conninfo,
             open=False,
-            max_size=settings.max_concurrent_runs + 2,
+            min_size=1,
+            max_size=5,
             kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": None},
         )
         await pool.open()

@@ -23,6 +23,12 @@ Run on 30 October 2026 using a server-side web fetcher, not a browser and probab
 
 **Main finding:** all five government pages failed from this fetcher. This is the largest external risk, and it's why the Mumbai VM, fetch tiers, prepared library and upload path exist.
 
+**Fetch test, 31 October 2026:** from a home connection in India, not yet from the VM, 8 of 14 official PDFs downloaded with TLS verification on. Failures: one TLS verification error (pmkisan.gov.in), one 403 (mha.gov.in), one 404, and three timeouts (pmgsy.nic.in, nskfdc.nic.in, socialjustice.gov.in).
+
+**Hindi text layer finding:** the PMAY-G Hindi booklet has a corrupted text layer on a Unicode font, such as `ग्ामीीण` for `ग्रामीण`, with doubled vowel signs on 36 of 40 pages. Replacement-character and legacy-font checks don't catch this, so task 2.4 must. Gemini OCR read a sample page correctly.
+
+**Connection limit:** Supabase's session pooler allows 15 clients, and they filled up after hard-kill tests, stopping the backend from starting. Use the transaction pooler on port 6543.
+
 **Sarvam cost estimate:** a 1,500-character explainer costs about ₹3 to translate and ₹1.50 to speak with v4-flash, or ₹4.50 per language, excluding GST. The free ₹100 covers roughly 20 runs before testing and retries, hence the ₹500 top-up.
 
 ## 2. Design review

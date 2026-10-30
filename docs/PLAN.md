@@ -8,3 +8,4 @@ Haq turns real government documents into spoken explanations in a citizen's lang
 | [Low-level design](LLD.md) | Schema, graph nodes, algorithms, API, frontend, testing |
 | [Implementation plan](IMPLEMENTATION_PLAN.md) | Phases, tasks, owners, gates, demo script, cut list, submission checklist |
 | [Stress test](STRESS_TEST.md) | Live check results, design attacks, failure matrix, evaluation, verdict |
+| [Deployment](DEPLOYMENT.md) | VM, Vercel, deployment checks, laptop standby |

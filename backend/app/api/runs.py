@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.api.errors import ApiError
 from app.db.models import Document, Run, RunEvent
-from app.graph.events import TERMINAL_EVENTS
+from app.graph.events import is_terminal
 
 router = APIRouter(prefix="/v1")
 
@@ -26,19 +26,14 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
         document = await session.get(Document, run.document_id) if run.document_id else None
         events = await services.deps.events.since(session, run_id, 0)
 
-    error = next((e.payload for e in events if e.type == "run_failed"), None)
+    error = next((e.payload["error"] for e in events if "error" in e.payload), None)
     return {
         "id": str(run.id),
         "status": run.status,
         "language": run.language,
         "document": _document_view(document) if document else None,
-        "steps": [
-            {"seq": e.seq, "type": e.type, **e.payload}
-            for e in events
-            if e.type in ("node_started", "node_finished")
-        ],
-        "last_seq": events[-1].seq if events else 0,
         "error": error,
+        "events": [{"seq": e.seq, "type": e.type, "payload": e.payload} for e in events],
     }
 
 
@@ -69,7 +64,7 @@ async def _event_stream(request: Request, run_id: str, last_seq: int) -> AsyncIt
         for event in events:
             last_seq = event.seq
             yield _format(event)
-            if event.type in TERMINAL_EVENTS:
+            if is_terminal(event):
                 return
         if events:
             continue
