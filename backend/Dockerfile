@@ -20,7 +20,8 @@ RUN if python -c "import playwright" 2>/dev/null; then \
 
 COPY app ./app
 
-RUN useradd --create-home haq && chown -R haq /srv
+# The folder must exist here so a new Compose volume inherits its owner.
+RUN useradd --create-home haq && mkdir .uploads && chown -R haq /srv
 USER haq
 
 EXPOSE 8000

@@ -6,6 +6,11 @@ services:
     # Reaps Chromium child processes left by the Playwright fetcher.
     init: true
     shm_size: 512m
+    environment:
+      UPLOAD_DIR: /srv/.uploads
+    volumes:
+      # Queued runs need their uploads after a rebuild.
+      - uploads:/srv/.uploads
     expose:
       - "8000"
 
@@ -26,5 +31,6 @@ services:
       - caddy_config:/config
 
 volumes:
+  uploads:
   caddy_data:
   caddy_config:
