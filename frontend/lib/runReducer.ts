@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  Claim,
   RunEvent,
   RunSnapshot,
   RunStatus,
@@ -20,7 +21,13 @@ export type RunAction =
   | { type: "rejected"; error: ApiError };
 
 export const initialRunState: RunState = {
-  view: { status: "queued", clausesReady: false, steps: [] },
+  view: {
+    status: "queued",
+    clausesReady: false,
+    claims: [],
+    notStated: [],
+    steps: [],
+  },
   seen: new Set(),
   maxSeq: -1,
 };
@@ -94,6 +101,12 @@ function applyToSteps(steps: Step[], event: RunEvent): Step[] {
   });
 }
 
+// A verified claim stays verified, so an older snapshot can only be missing some.
+function mergeClaims(known: Claim[], incoming: Claim[]): Claim[] {
+  const ids = new Set(incoming.map((c) => c.id));
+  return [...incoming, ...known.filter((c) => !ids.has(c.id))];
+}
+
 function applyEvent(state: RunState, event: RunEvent): RunState {
   if (state.seen.has(event.seq)) return state;
 
@@ -121,6 +134,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
         ...next.view,
         language: action.run.language ?? next.view.language,
         document: action.run.document ?? next.view.document,
+        claims: mergeClaims(next.view.claims, action.run.claims ?? []),
       };
       // A snapshot requested before newer stream events arrived must not move
       // the status backwards.
@@ -128,6 +142,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       if (latest >= state.maxSeq) {
         view.status = action.run.status;
         view.error = action.run.error ?? view.error;
+        view.notStated = action.run.not_stated ?? view.notStated;
         if (action.run.status === "failed") {
           view.steps = settleRunning(view.steps, "failed");
         } else if (isTerminal(action.run.status)) {

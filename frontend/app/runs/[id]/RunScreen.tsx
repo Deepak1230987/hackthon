@@ -6,6 +6,7 @@ import { AgentTrace } from "@/components/AgentTrace";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SourceOptions } from "@/components/SourceOptions";
 import type { ConnectionState, RunStatus, SourceOption } from "@/lib/types";
+import { isTerminal } from "@/lib/runReducer";
 import { useRunStream } from "@/lib/useRunStream";
 
 const STATUS_TEXT: Record<RunStatus, string> = {
@@ -63,15 +64,19 @@ export function RunScreen({ id }: { id: string }) {
         </div>
       )}
 
-      {loaded && !(view.error && view.steps.length === 0) && (
-        <AgentTrace steps={view.steps} />
-      )}
     </>
+  );
+
+  const trace = loaded && !(view.error && view.steps.length === 0) && (
+    <AgentTrace steps={view.steps} finished={isTerminal(view.status)} />
   );
 
   if (!view.document) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6">{summary}</div>
+      <div className="mx-auto flex max-w-2xl flex-col gap-6">
+        {summary}
+        {trace}
+      </div>
     );
   }
   return (
@@ -79,6 +84,10 @@ export function RunScreen({ id }: { id: string }) {
       key={view.document.id}
       document={view.document}
       clausesReady={view.clausesReady}
+      status={view.status}
+      claims={view.claims}
+      notStated={view.notStated}
+      trace={trace}
     >
       {summary}
     </DocumentWorkspace>

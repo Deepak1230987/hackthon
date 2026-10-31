@@ -179,7 +179,9 @@ export function PdfViewer({
 
       <div
         ref={scrollerRef}
-        className="relative min-h-0 flex-1 overflow-y-auto bg-line/40"
+        // A scrollbar that appeared and vanished would change the width, and so the
+        // page height, forever. Keeping its space reserved stops that.
+        className="relative min-h-0 flex-1 overflow-y-auto bg-line/40 [scrollbar-gutter:stable]"
       >
         <div
           ref={stageRef}

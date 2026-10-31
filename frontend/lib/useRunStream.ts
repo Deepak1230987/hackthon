@@ -14,6 +14,7 @@ import {
 
 const MAX_SSE_FAILURES = 3;
 const POLL_INTERVAL_MS = 3000;
+const CLAIM_REFRESH_MS = 1000;
 
 // Retrying can't fix a 4xx, except for a timeout or a rate limit.
 function isFinalRejection(status: number | undefined): boolean {
@@ -39,6 +40,7 @@ export function useRunStream(runId: string): {
     let stopped = false;
     let source: EventSource | undefined;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let claimTimer: ReturnType<typeof setTimeout> | undefined;
 
     // Returns false when there is nothing more to wait for.
     const loadSnapshot = async (): Promise<boolean> => {
@@ -119,6 +121,13 @@ export function useRunStream(runId: string): {
           ) {
             void loadSnapshot();
           }
+          // Events carry claim ids only, and verified claims arrive in bursts.
+          if (type === "claim_verified" && !claimTimer) {
+            claimTimer = setTimeout(() => {
+              claimTimer = undefined;
+              void loadSnapshot();
+            }, CLAIM_REFRESH_MS);
+          }
         });
       }
     };
@@ -133,6 +142,7 @@ export function useRunStream(runId: string): {
       stopped = true;
       source?.close();
       if (pollTimer) clearTimeout(pollTimer);
+      if (claimTimer) clearTimeout(claimTimer);
     };
   }, [runId]);
 

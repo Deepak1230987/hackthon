@@ -1,4 +1,4 @@
-import { traceLines, type Tone } from "@/lib/traceEvents";
+import { correctionSummary, traceLines, type Tone } from "@/lib/traceEvents";
 import type { Step, StepStatus } from "@/lib/types";
 
 const NODE_LABELS: Record<string, string> = {
@@ -51,7 +51,9 @@ function StepRow({ step }: { step: Step }) {
       />
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="font-medium">
-          {NODE_LABELS[step.node] ?? step.node}
+          {step.node === "extract" && step.attempt > 1
+            ? "Correct rejected claims"
+            : (NODE_LABELS[step.node] ?? step.node)}
           {step.attempt > 1 && (
             <span className="font-normal text-muted">
               {" "}
@@ -68,7 +70,7 @@ function StepRow({ step }: { step: Step }) {
       </div>
       {step.events.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5 text-sm">
-          {traceLines(step.events).map(({ key, text, tone }) => (
+          {traceLines(step.events, step.attempt).map(({ key, text, tone }) => (
             <li key={key} className={`break-words ${TONE_STYLES[tone]}`}>
               {text}
             </li>
@@ -79,12 +81,53 @@ function StepRow({ step }: { step: Step }) {
   );
 }
 
-export function AgentTrace({ steps }: { steps: Step[] }) {
+function SelfCheck({ steps, finished }: { steps: Step[]; finished: boolean }) {
+  const { rejected, corrected, unresolved, unchecked } =
+    correctionSummary(steps);
+  if (rejected === 0 && unchecked === 0) return null;
+  const count = (n: number) => `${n} ${n === 1 ? "claim" : "claims"}`;
+  return (
+    <div className="mb-4 flex flex-col gap-1 rounded-md border border-warning/30 bg-highlight-soft px-3 py-2 text-sm">
+      {rejected > 0 && (
+        <p>
+          <span className="font-semibold">
+            We caught {count(rejected)} that didn&apos;t match the document.
+          </span>{" "}
+          {corrected} corrected and passed.{" "}
+          {unresolved > 0 &&
+            (finished
+              ? `${unresolved} left out, because we couldn't verify ${
+                  unresolved === 1 ? "it" : "them"
+                }.`
+              : `${unresolved} still being checked.`)}
+        </p>
+      )}
+      {unchecked > 0 && (
+        <p>
+          <span className="font-semibold">
+            {count(unchecked)} couldn&apos;t be checked,
+          </span>{" "}
+          so {unchecked === 1 ? "it isn't" : "they aren't"} shown. Trying again
+          later may find more.
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function AgentTrace({
+  steps,
+  finished = false,
+}: {
+  steps: Step[];
+  finished?: boolean;
+}) {
   return (
     <section aria-labelledby="trace-heading">
       <h2 id="trace-heading" className="mb-4 text-lg font-semibold">
         Steps
       </h2>
+      <SelfCheck steps={steps} finished={finished} />
       {steps.length === 0 ? (
         <p className="text-muted">Waiting for the first step…</p>
       ) : (

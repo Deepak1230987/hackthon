@@ -93,6 +93,33 @@ export type DocumentClauses = {
   failed_pages: number[];
 };
 
+export type ClaimField =
+  | "benefit"
+  | "eligibility"
+  | "document"
+  | "deadline"
+  | "authority"
+  | "obligation"
+  | "penalty";
+
+// Where a claim comes from. The clause text itself is in DocumentClauses.
+export type ClauseRef = {
+  id: string;
+  ordinal: number;
+  page: number;
+  bbox: [number, number, number, number] | null;
+  extraction: "native" | "ocr";
+};
+
+// Only verified claims leave the backend.
+export type Claim = {
+  id: string;
+  field: ClaimField;
+  text: string;
+  quote: string;
+  clauses: ClauseRef[];
+};
+
 // One choice in details.options of a MULTIPLE_PDFS error.
 export type SourceOption = {
   url: string;
@@ -106,6 +133,8 @@ export type RunSnapshot = {
   language?: string;
   document?: DocumentView | null;
   error?: ApiError | null;
+  claims?: Claim[];
+  not_stated?: ClaimField[];
   events: RunEvent[];
 };
 
@@ -126,6 +155,8 @@ export type RunView = {
   language?: string;
   document?: DocumentView;
   clausesReady: boolean;
+  claims: Claim[];
+  notStated: ClaimField[];
   steps: Step[];
   error?: ApiError;
 };

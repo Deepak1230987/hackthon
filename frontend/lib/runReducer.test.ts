@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { initialRunState, runReducer, type RunState } from "./runReducer.ts";
-import type { RunEvent, RunEventType, RunStatus } from "./types.ts";
+import type { Claim, RunEvent, RunEventType, RunStatus } from "./types.ts";
 
 const event = (
   seq: number,
@@ -145,6 +145,64 @@ test("a refresh after segmentation still knows clauses are ready", () => {
     snapshot("completed", [event(1, "segment_done", { clauses: 3 })]),
   );
   assert.equal(view.clausesReady, true);
+});
+
+const claim = (id: string): Claim => ({
+  id,
+  field: "benefit",
+  text: `Claim ${id}`,
+  quote: "a quote from the document",
+  clauses: [],
+});
+
+test("verified claims arrive through snapshots", () => {
+  const { view } = runReducer(initialRunState, {
+    type: "snapshot",
+    run: { id: "r", status: "running", claims: [claim("a")], events: [] },
+  });
+  assert.deepEqual(
+    view.claims.map((c) => c.id),
+    ["a"],
+  );
+});
+
+test("an older snapshot can't remove a verified claim", () => {
+  const newer = runReducer(initialRunState, {
+    type: "snapshot",
+    run: {
+      id: "r",
+      status: "running",
+      claims: [claim("a"), claim("b")],
+      events: [event(2, "claim_verified", { claim_id: "b" })],
+    },
+  });
+  const { view } = runReducer(newer, {
+    type: "snapshot",
+    run: { id: "r", status: "running", claims: [claim("a")], events: [] },
+  });
+  assert.deepEqual(view.claims.map((c) => c.id).sort(), ["a", "b"]);
+});
+
+test("not stated comes from the latest snapshot only", () => {
+  const latest = runReducer(initialRunState, {
+    type: "snapshot",
+    run: {
+      id: "r",
+      status: "completed",
+      not_stated: ["penalty"],
+      events: [event(3, "run_status", { status: "completed" })],
+    },
+  });
+  const { view } = runReducer(latest, {
+    type: "snapshot",
+    run: {
+      id: "r",
+      status: "running",
+      not_stated: ["penalty", "benefit"],
+      events: [event(1, "node_started", { node: "extract" })],
+    },
+  });
+  assert.deepEqual(view.notStated, ["penalty"]);
 });
 
 test("a terminal snapshot settles steps when polling missed the event", () => {

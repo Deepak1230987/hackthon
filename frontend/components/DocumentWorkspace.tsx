@@ -14,8 +14,17 @@ import { ClauseList } from "@/components/ClauseList";
 import { PagePicker } from "@/components/PagePicker";
 import { PdfViewer } from "@/components/PdfViewer";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { RightsCard } from "@/components/RightsCard";
 import { ApiRequestError, fetchClauses } from "@/lib/api";
-import type { Clause, DocumentClauses, DocumentView } from "@/lib/types";
+import type {
+  Claim,
+  ClaimField,
+  Clause,
+  ClauseRef,
+  DocumentClauses,
+  DocumentView,
+  RunStatus,
+} from "@/lib/types";
 
 const DESKTOP = "(min-width: 1024px)";
 
@@ -31,10 +40,18 @@ const isDesktopOnServer = () => false;
 export function DocumentWorkspace({
   document: doc,
   clausesReady,
+  status,
+  claims,
+  notStated,
+  trace,
   children,
 }: {
   document: DocumentView;
   clausesReady: boolean;
+  status: RunStatus;
+  claims: Claim[];
+  notStated: ClaimField[];
+  trace: ReactNode;
   children: ReactNode;
 }) {
   const isDesktop = useSyncExternalStore(
@@ -105,6 +122,12 @@ export function DocumentWorkspace({
     if (!isDesktop) openSheet();
   };
 
+  const showSource = (source: ClauseRef) => {
+    setSelected(data?.clauses.find((c) => c.id === source.id));
+    setPage(source.page);
+    if (!isDesktop) openSheet();
+  };
+
   const sheetShowing = sheetOpen && !isDesktop;
 
   useEffect(() => {
@@ -127,6 +150,14 @@ export function DocumentWorkspace({
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col gap-6">
         {children}
+        <RightsCard
+          status={status}
+          claims={claims}
+          notStated={notStated}
+          selectedClauseId={selected?.id}
+          onShowSource={showSource}
+        />
+        {trace}
         <ProvenanceBadge document={doc} />
 
         <section aria-labelledby="clauses-heading">
