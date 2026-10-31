@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     llm_primary_model: str = ""
     llm_fallback_model: str = ""
+    llm_fast_model: str = ""
     ocr_model: str = ""
     ocr_fallback_model: str = ""
     embedding_model: str = ""
@@ -30,7 +31,7 @@ class Settings(BaseSettings):
 
     max_concurrent_runs: int = 3
     max_llm_calls: int = 60
-    run_timeout_s: int = 180
+    run_timeout_s: int = 300
     max_pdf_mb: int = 50
     max_pages: int = 200
     profile_ttl_s: int = 3600

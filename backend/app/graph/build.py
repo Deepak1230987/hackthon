@@ -6,9 +6,12 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph.deps import Deps
 from app.graph.nodes.acquire import acquire
+from app.graph.nodes.extract import extract
 from app.graph.nodes.parse import parse
 from app.graph.nodes.passthrough import passthrough
 from app.graph.nodes.segment import segment
+from app.graph.nodes.triage import triage
+from app.graph.nodes.verify import needs_repair, verify
 from app.graph.state import RunState
 
 Node = Callable[[RunState, Deps], Awaitable[dict | None]]
@@ -18,9 +21,9 @@ NODES: list[tuple[str, Node]] = [
     ("acquire", acquire),
     ("parse", parse),
     ("segment", segment),
-    ("triage", passthrough),
-    ("extract", passthrough),
-    ("verify", passthrough),
+    ("triage", triage),
+    ("extract", extract),
+    ("verify", verify),
     ("compile_rules", passthrough),
     ("evaluate", passthrough),
     ("script", passthrough),
@@ -55,7 +58,14 @@ def build_graph(deps: Deps, checkpointer: BaseCheckpointSaver):
     previous = START
     for name, node in NODES:
         graph.add_node(name, _traced(name, node, deps))
-        graph.add_edge(previous, name)
+        if previous == "verify":
+            # Rejected claims go back for repair, a limited number of times.
+            async def route_after_verify(state: RunState, following: str = name) -> str:
+                return "extract" if await needs_repair(state, deps) else following
+
+            graph.add_conditional_edges("verify", route_after_verify, ["extract", name])
+        else:
+            graph.add_edge(previous, name)
         previous = name
     graph.add_edge(previous, END)
     return graph.compile(checkpointer=checkpointer)

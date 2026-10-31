@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 
-from app.db.models import Run
+from app.db.models import Claim, Run
 from app.graph.deps import Deps, RunFailed
 from app.graph.state import SourceRequest, initial_state
 
@@ -49,9 +50,7 @@ class RunRunner:
             except RunFailed as exc:
                 await self._fail(run_id, exc.code, exc.message, exc.action, exc.details)
             except TimeoutError:
-                await self._fail(
-                    run_id, "RUN_TIMEOUT", "This run took too long and was stopped.", "retry"
-                )
+                await self._on_timeout(run_id)
             except Exception:
                 log.exception("Run %s failed", run_id)
                 await self._fail(run_id, "INTERNAL_ERROR", "Something went wrong.", "retry")
@@ -67,6 +66,28 @@ class RunRunner:
         return await self._graph.ainvoke(
             None if started else initial_state(run_id, language, source), config
         )
+
+    async def _on_timeout(self, run_id: str) -> None:
+        """Keep what was verified. Anything still unchecked is never shown."""
+        run_uuid = uuid.UUID(run_id)
+        async with self._deps.sessions() as session:
+            await session.execute(
+                update(Claim)
+                .where(Claim.run_id == run_uuid, Claim.status == "pending")
+                .values(status="not_stated", failure_reason="RUN_TIMEOUT")
+            )
+            verified = await session.scalar(
+                select(func.count())
+                .select_from(Claim)
+                .where(Claim.run_id == run_uuid, Claim.status == "verified")
+            )
+            await session.commit()
+        if verified:
+            await self._set_status(run_id, "partial", finished=True)
+        else:
+            await self._fail(
+                run_id, "RUN_TIMEOUT", "This run took too long and was stopped.", "retry"
+            )
 
     async def _fail(
         self,

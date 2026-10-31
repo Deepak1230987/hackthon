@@ -1,5 +1,6 @@
 import asyncio
 
+from app.claims.schemas import EntailmentResult, EntailmentVerdict, ExtractionResult, TriageResult
 from app.providers.gateway import ProviderUnavailable
 
 
@@ -31,6 +32,33 @@ class FakeGateway:
         self.embed_calls = 0
         self.ocr_failures = 0
         self.embed_fails = False
+        self.prompts: dict[str, list[str]] = {}
+        # A test sets these. Each entry is a reply, or an exception to raise.
+        self.replies: dict[str, list] = {"triage": [], "extract": [], "repair": [], "entail": []}
+        self.entail_label = "ENTAILED"
+        self.hang_entail_after: int | None = None
+
+    async def structured(self, task, prompt, schema, budget):
+        await budget.charge()
+        self.prompts.setdefault(task, []).append(prompt)
+        if task == "entail" and self.hang_entail_after is not None:
+            if len(self.prompts[task]) > self.hang_entail_after:
+                await asyncio.sleep(3600)
+        if self.replies.get(task):
+            reply = self.replies[task].pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+        if task == "triage":
+            return TriageResult(is_policy=True, reason="A scheme document")
+        if task == "extract":
+            return ExtractionResult(claims=[])
+        if task == "entail":
+            count = prompt.count("<claim ")
+            return EntailmentResult(
+                verdicts=[EntailmentVerdict(index=i, label=self.entail_label) for i in range(count)]
+            )
+        return schema(claims=[])
 
     async def vision_ocr(self, image: bytes) -> list[dict[str, str]]:
         self.ocr_calls += 1

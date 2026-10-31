@@ -44,7 +44,8 @@ docker-compose.yml  Caddyfile  .env.example  README.md
 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SARVAM_API_KEY` | Providers |
 | `LLM_PRIMARY_MODEL`, `LLM_FALLBACK_MODEL`, `OCR_MODEL`, `EMBEDDING_MODEL`, `EMBEDDING_DIM` | Fixed at hour 0 from the providers' live model lists |
 | `TTS_MODEL`, `TRANSLATE_MODEL`, `STT_MODEL` | Default `bulbul:v4-flash`, `sarvam-translate:v1`, `saaras:v4` |
-| `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=180` | Limits |
+| `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=300` | Limits |
+| `LLM_FAST_MODEL` | Used for triage, which only decides whether to carry on |
 | `MAX_PDF_MB=50`, `MAX_PAGES=200`, `PROFILE_TTL_S=3600` | Limits |
 | `CROSS_PROVIDER_VERIFY=false` | Use the other provider for entailment |
 | `ALLOWED_ORIGINS` | CORS |
@@ -305,7 +306,7 @@ async def verify_claim(claim, clauses) -> Verification:
     return ok_result()
 ```
 
-The cheap checks run first, and verifying up to 8 claims at once keeps it fast. A quote from a Hindi source can back an English claim, because entailment works across languages and `numbers()` normalises digit systems.
+The cheap checks run first. Entailment is judged in batches of 8 claims per call, which keeps long documents inside `MAX_LLM_CALLS`. For OCR clauses a fuzzy match would accept `3.5 lakh` for `2.5 lakh`, so the quote's numbers must also appear exactly in the source. Quotes under 8 characters fail as `QUOTE_TOO_SHORT`. A claim the entailment reply skips counts as `NOT_ENTAILED`. A quote from a Hindi source can back an English claim, because entailment works across languages and `numbers()` normalises digit systems.
 
 ### 7.4 Number parsing
 
@@ -471,7 +472,7 @@ Limits: 500 characters per question and 20 questions per run.
 | `POST /v1/library/{document_id}/runs` | `{language}` | `202 {run_id}` |
 | `GET /v1/documents/{id}/file` | | PDF stream |
 | `GET /v1/documents/{id}/clauses` | | `{clauses: [{id, ordinal, page, bbox, text, lang, kind, extraction}], failed_pages}`. `page` is 1-based. `bbox` is `[x0, y0, x1, y1]` in PDF points from the top left, or `null` for OCR |
-| `GET /v1/runs/{id}` | | Full run view, also the polling fallback |
+| `GET /v1/runs/{id}` | | Full run view, also the polling fallback. Adds `claims: [{id, field, text, quote, clauses: [{id, ordinal, page, bbox, extraction}]}]`, verified claims only, and `not_stated: [field]` |
 | `GET /v1/runs/{id}/events` | `Last-Event-ID` | SSE stream |
 | `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}` |
 | `POST /v1/runs/{id}/stt` | Multipart audio, `field` | `{transcript, parsed, confidence}` |
@@ -498,7 +499,7 @@ Limits: 500 characters per question and 20 questions per run.
 | `PROVIDERS_UNAVAILABLE` | Event | Retry the run |
 | `MULTIPLE_PDFS` | Event | Choose from `details.options` |
 | `NO_READABLE_TEXT` | Event | Try another file |
-| `RUN_TIMEOUT` | Event | Retry the run; finished pages are kept |
+| `RUN_TIMEOUT` | Event | Retry the run; finished pages are kept. If claims were already verified, the run ends as `partial` and keeps them, and unchecked claims are never shown |
 | `RUN_NOT_FOUND`, `DOCUMENT_NOT_FOUND` | 404 | Start again |
 
 ### 12.3 SSE

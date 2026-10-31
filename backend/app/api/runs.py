@@ -8,7 +8,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from app.api.errors import ApiError
-from app.db.models import Document, Run, RunEvent
+from app.claims.schemas import CLAIM_FIELDS
+from app.db.models import Claim, Clause, Document, Run, RunEvent
 from app.graph.events import is_terminal
 
 router = APIRouter(prefix="/v1")
@@ -25,6 +26,7 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
             raise _not_found()
         document = await session.get(Document, run.document_id) if run.document_id else None
         events = await services.deps.events.since(session, run_id, 0)
+        claims = await _verified_claims(session, run_id)
 
     error = next((e.payload["error"] for e in events if "error" in e.payload), None)
     return {
@@ -33,6 +35,10 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
         "language": run.language,
         "document": document_view(document) if document else None,
         "error": error,
+        "claims": claims,
+        "not_stated": [
+            field for field in CLAIM_FIELDS if not any(c["field"] == field for c in claims)
+        ],
         "events": [{"seq": e.seq, "type": e.type, "payload": e.payload} for e in events],
     }
 
@@ -74,6 +80,37 @@ async def _event_stream(request: Request, run_id: str, last_seq: int) -> AsyncIt
             await asyncio.wait_for(wake.wait(), timeout=HEARTBEAT_S)
         except TimeoutError:
             yield ": heartbeat\n\n"
+
+
+async def _verified_claims(session, run_id: uuid.UUID) -> list[dict]:
+    """Only verified claims leave the backend. Rejections appear in the trace, without their text."""
+    claims = (
+        await session.scalars(
+            select(Claim).where(Claim.run_id == run_id, Claim.status == "verified")
+        )
+    ).all()
+    wanted = {clause_id for claim in claims for clause_id in claim.clause_ids}
+    found = await session.scalars(select(Clause).where(Clause.id.in_(wanted))) if wanted else []
+    clauses = {clause.id: clause for clause in found}
+    return [
+        {
+            "id": str(claim.id),
+            "field": claim.field,
+            "text": claim.text,
+            "quote": claim.quote,
+            "clauses": [
+                {
+                    "id": str(clause.id),
+                    "ordinal": clause.ordinal,
+                    "page": clause.page,
+                    "bbox": clause.bbox,
+                    "extraction": clause.extraction,
+                }
+                for clause in (clauses[clause_id] for clause_id in claim.clause_ids)
+            ],
+        }
+        for claim in sorted(claims, key=lambda c: min(clauses[i].ordinal for i in c.clause_ids))
+    ]
 
 
 def _format(event: RunEvent) -> str:

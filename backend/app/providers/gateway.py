@@ -3,18 +3,24 @@ import base64
 import json
 import logging
 import random
-from typing import Any
+from typing import Any, TypeVar
 
 import httpx
+from pydantic import BaseModel, ValidationError
 
 from app.config import Settings
 from app.documents.ocr import OCR_KINDS, OCR_PROMPT, OCR_SCHEMA, OPENAI_OCR_SCHEMA
+from app.providers.budget import Budget
+from app.providers.circuit import Circuit
 
 log = logging.getLogger(__name__)
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 TIMEOUT_S = 45
+# Extracting from a long document takes far longer than one page of OCR.
+LLM_TIMEOUT_S = 120
+FAST_TASKS = {"triage"}
 BACKOFF_S = (1, 2, 4)
 EMBED_BATCH = 64
 RETRYABLE = {429, 500, 502, 503, 504}
@@ -22,8 +28,34 @@ RETRYABLE = {429, 500, 502, 503, 504}
 MAX_REQUESTED_DELAY_S = 65
 
 
+Model = TypeVar("Model", bound=BaseModel)
+
+
 class ProviderUnavailable(Exception):
     pass
+
+
+def gemini_schema(schema: dict[str, Any], defs: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Gemini's response schema is a subset of JSON Schema, without references or unions."""
+    defs = schema.get("$defs", {}) if defs is None else defs
+    if "$ref" in schema:
+        return gemini_schema(defs[schema["$ref"].rsplit("/", 1)[1]], defs)
+    if "anyOf" in schema:
+        real = [option for option in schema["anyOf"] if option.get("type") != "null"]
+        return {**gemini_schema(real[0], defs), "nullable": True}
+    result: dict[str, Any] = {"type": schema.get("type", "string").upper()}
+    if "enum" in schema:
+        result["enum"] = schema["enum"]
+    if "const" in schema:
+        result["enum"] = [schema["const"]]
+    if "items" in schema:
+        result["items"] = gemini_schema(schema["items"], defs)
+    if "properties" in schema:
+        result["properties"] = {
+            name: gemini_schema(value, defs) for name, value in schema["properties"].items()
+        }
+        result["required"] = schema.get("required", [])
+    return result
 
 
 def _requested_delay(response: httpx.Response) -> float | None:
@@ -45,7 +77,7 @@ def _ocr_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 class Gateway:
-    """Calls to AI providers. Failover to OpenAI, circuit breaking and budgets join in phase 3."""
+    """Calls to AI providers, with retries, failover to OpenAI, circuit breaking and budgets."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -55,13 +87,21 @@ class Gateway:
         self._openai = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {settings.openai_api_key}"}, timeout=TIMEOUT_S
         )
+        self._circuits: dict[str, Circuit] = {}
 
-    async def _post(self, model: str, method: str, body: dict[str, Any]) -> dict[str, Any]:
+    def _circuit(self, provider: str) -> Circuit:
+        return self._circuits.setdefault(provider, Circuit())
+
+    async def _post(
+        self, model: str, method: str, body: dict[str, Any], timeout: float = TIMEOUT_S
+    ) -> dict[str, Any]:
         failure = "no attempt made"
         for delay in (*BACKOFF_S, None):
             wait = delay
             try:
-                response = await self._client.post(f"{GEMINI_URL}/{model}:{method}", json=body)
+                response = await self._client.post(
+                    f"{GEMINI_URL}/{model}:{method}", json=body, timeout=timeout
+                )
                 if response.status_code == 200:
                     return response.json()
                 failure = f"status {response.status_code}"
@@ -79,6 +119,98 @@ class Gateway:
                 await asyncio.sleep(wait + random.random())
         log.warning("Gemini %s on %s failed: %s", method, model, failure)
         raise ProviderUnavailable(failure)
+
+    async def structured(
+        self, task: str, prompt: str, schema: type[Model], budget: Budget
+    ) -> Model:
+        """A reply matching the schema, from the first provider able to give one."""
+        settings = self._settings
+        # Triage only decides whether to carry on, so it needn't use the slower model.
+        primary = settings.llm_fast_model if task in FAST_TASKS else ""
+        providers = [("gemini", self._gemini_text, primary or settings.llm_primary_model)]
+        if settings.openai_api_key and settings.llm_fallback_model:
+            providers.append(("openai", self._openai_text, settings.llm_fallback_model))
+
+        failure = "no LLM model configured"
+        previous = None
+        for provider, call, model in providers:
+            if not model:
+                continue
+            if previous:
+                await budget.failover(previous, provider, failure)
+            previous = provider
+            circuit = self._circuit(provider)
+            if circuit.is_open():
+                failure = "circuit open"
+                continue
+            try:
+                result = await self._validated(call, model, prompt, schema, budget)
+            except ProviderUnavailable as exc:
+                circuit.record_failure()
+                failure = str(exc)
+                log.warning("%s failed on %s: %s", task, provider, failure)
+                continue
+            circuit.record_success()
+            return result
+        raise ProviderUnavailable(failure)
+
+    async def _validated(self, call, model: str, prompt: str, schema: type[Model], budget: Budget) -> Model:
+        await budget.charge()
+        reply = await call(model, prompt, schema)
+        try:
+            return schema.model_validate_json(reply)
+        except ValidationError as exc:
+            problem = str(exc)[:800]
+        # One chance to fix it, by showing the model exactly what was wrong.
+        await budget.charge()
+        repair = (
+            f"{prompt}\n\nYour previous reply was:\n{reply[:4000]}\n\n"
+            f"It failed validation with:\n{problem}\n\nReply again with valid JSON."
+        )
+        reply = await call(model, repair, schema)
+        try:
+            return schema.model_validate_json(reply)
+        except ValidationError as exc:
+            raise ProviderUnavailable("reply did not match the schema") from exc
+
+    async def _gemini_text(self, model: str, prompt: str, schema: type[BaseModel]) -> str:
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0,
+                "responseMimeType": "application/json",
+                "responseSchema": gemini_schema(schema.model_json_schema()),
+            },
+        }
+        result = await self._post(model, "generateContent", body, timeout=LLM_TIMEOUT_S)
+        try:
+            candidate = result["candidates"][0]
+            if "content" not in candidate or "parts" not in candidate["content"]:
+                raise ProviderUnavailable(f"blocked: {candidate.get('finishReason', 'unknown')}")
+            return "".join(part.get("text", "") for part in candidate["content"]["parts"])
+        except (KeyError, IndexError, TypeError) as exc:
+            reason = (result.get("promptFeedback") or {}).get("blockReason", type(exc).__name__)
+            raise ProviderUnavailable(f"blocked: {reason}") from exc
+
+    async def _openai_text(self, model: str, prompt: str, schema: type[BaseModel]) -> str:
+        shape = json.dumps(schema.model_json_schema())
+        body = {
+            "model": model,
+            "temperature": 0,
+            "messages": [
+                {"role": "user", "content": f"{prompt}\n\nReply with JSON matching this schema:\n{shape}"}
+            ],
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            response = await self._openai.post(OPENAI_URL, json=body, timeout=LLM_TIMEOUT_S)
+            if response.status_code != 200:
+                raise ProviderUnavailable(f"status {response.status_code}")
+            return response.json()["choices"][0]["message"]["content"]
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(type(exc).__name__) from exc
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         model = self._settings.embedding_model
