@@ -5,6 +5,7 @@ class SourceRequest(TypedDict):
     upload_path: NotRequired[str]
     sha256: NotRequired[str]
     url: NotRequired[str]
+    document_id: NotRequired[str]
 
 
 class RunState(TypedDict):
