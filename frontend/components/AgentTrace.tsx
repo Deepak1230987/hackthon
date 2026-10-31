@@ -1,4 +1,5 @@
-import type { RunEvent, Step, StepStatus } from "@/lib/types";
+import { traceLines, type Tone } from "@/lib/traceEvents";
+import type { Step, StepStatus } from "@/lib/types";
 
 const NODE_LABELS: Record<string, string> = {
   acquire: "Get the document",
@@ -24,61 +25,12 @@ const STATUS_STYLES: Record<StepStatus, { dot: string; label: string }> = {
 
 const NOT_BUILT_STYLE = { dot: "bg-line", label: "Not built yet" };
 
-type Tone = "plain" | "good" | "warn" | "bad";
-
 const TONE_STYLES: Record<Tone, string> = {
   plain: "text-muted",
   good: "text-success",
   warn: "text-warning font-medium",
   bad: "text-danger font-medium",
 };
-
-function describe(event: RunEvent): { text: string; tone: Tone } {
-  const p = event.payload;
-  const suffix = (value: unknown) => (value ? `: ${String(value)}` : "");
-  switch (event.type) {
-    case "fetch_attempt":
-      return { text: `Fetch attempt${suffix(p.method)}`, tone: "plain" };
-    case "page_ocr":
-      return { text: `OCR on page ${p.page ?? "?"}`, tone: "plain" };
-    case "segment_done":
-      return { text: `Found ${p.clauses ?? "?"} clauses`, tone: "plain" };
-    case "triage_result":
-      return {
-        text: p.is_policy ? "This is a policy document" : "Not a policy document",
-        tone: p.is_policy ? "good" : "warn",
-      };
-    case "claim_extracted":
-      return { text: `Claim extracted${suffix(p.field)}`, tone: "plain" };
-    case "claim_verified":
-      return { text: "Claim verified", tone: "good" };
-    case "claim_rejected":
-      return { text: `Claim rejected${suffix(p.reason)}`, tone: "bad" };
-    case "retry":
-      return { text: `Retrying${suffix(p.reason)}`, tone: "warn" };
-    case "rules_compiled":
-      return { text: `Compiled ${p.count ?? "?"} rules`, tone: "plain" };
-    case "needs_input":
-      return { text: "Waiting for your answer", tone: "warn" };
-    case "verdict":
-      return { text: `Result${suffix(p.outcome)}`, tone: "plain" };
-    case "script_ready":
-      return { text: `Script has ${p.sentences ?? "?"} sentences`, tone: "plain" };
-    case "sentence_translated":
-      return { text: `Sentence translated${suffix(p.translator)}`, tone: "plain" };
-    case "failover":
-      return {
-        text: `Switched provider${p.to ? ` to ${String(p.to)}` : ""}`,
-        tone: "warn",
-      };
-    case "guard_failed":
-      return { text: `Guard failed${suffix(p.reason)}`, tone: "bad" };
-    case "sentence_ready":
-      return { text: "Sentence audio ready", tone: "good" };
-    default:
-      return { text: event.type, tone: "plain" };
-  }
-}
 
 function formatDuration(ms: number): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
@@ -116,14 +68,11 @@ function StepRow({ step }: { step: Step }) {
       </div>
       {step.events.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5 text-sm">
-          {step.events.map((event) => {
-            const { text, tone } = describe(event);
-            return (
-              <li key={event.seq} className={`break-words ${TONE_STYLES[tone]}`}>
-                {text}
-              </li>
-            );
-          })}
+          {traceLines(step.events).map(({ key, text, tone }) => (
+            <li key={key} className={`break-words ${TONE_STYLES[tone]}`}>
+              {text}
+            </li>
+          ))}
         </ul>
       )}
     </li>
