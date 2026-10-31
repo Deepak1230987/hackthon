@@ -69,6 +69,20 @@ class Clause(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector())
 
 
+class DocumentPage(Base):
+    __tablename__ = "document_pages"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+    )
+    page: Mapped[int] = mapped_column(Integer, primary_key=True)  # 1-based
+    extraction: Mapped[str] = mapped_column(Text, nullable=False)  # native | ocr
+    status: Mapped[str] = mapped_column(Text, nullable=False)  # done | failed
+    ocr_reason: Mapped[str | None] = mapped_column(Text)
+    data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    segmented: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+
+
 class Run(Base):
     __tablename__ = "runs"
 

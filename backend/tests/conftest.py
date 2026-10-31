@@ -13,7 +13,7 @@ from sqlalchemy import create_engine, text
 
 from app.config import Settings
 from app.main import create_app
-from tests.fakes import FakeStorage
+from tests.fakes import FakeGateway, FakeStorage
 
 BACKEND = Path(__file__).resolve().parents[1]
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
@@ -34,6 +34,16 @@ def make_pdf(text_content: str = "A test page", password: str | None = None) -> 
         return document.tobytes(
             encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password
         )
+    return document.tobytes()
+
+
+def make_scanned_pdf(seed: int = 0, pages: int = 1) -> bytes:
+    """Pages holding only an image, like a scan."""
+    document = pymupdf.open()
+    for number in range(pages):
+        pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+        pixmap.set_rect(pixmap.irect, (seed % 255, number % 255, 200))
+        document.new_page().insert_image(pymupdf.Rect(0, 0, 200, 200), pixmap=pixmap)
     return document.tobytes()
 
 
@@ -70,9 +80,14 @@ def storage() -> FakeStorage:
     return FakeStorage()
 
 
+@pytest.fixture
+def gateway() -> FakeGateway:
+    return FakeGateway()
+
+
 @pytest_asyncio.fixture
-async def app(settings: Settings, storage: FakeStorage):
-    application = create_app(settings, storage)
+async def app(settings: Settings, storage: FakeStorage, gateway: FakeGateway):
+    application = create_app(settings, storage, gateway)
     async with application.router.lifespan_context(application):
         yield application
 
