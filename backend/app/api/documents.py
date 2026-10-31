@@ -98,7 +98,8 @@ async def get_document_clauses(document_id: uuid.UUID, request: Request) -> dict
 
 
 def _check_language(language: object) -> None:
-    if language not in LANGUAGES:
+    # JSON can send a list here, which can't be looked up in a set.
+    if not isinstance(language, str) or language not in LANGUAGES:
         raise ApiError("INVALID_LANGUAGE", "Choose a supported language.")
 
 

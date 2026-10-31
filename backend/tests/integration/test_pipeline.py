@@ -233,6 +233,38 @@ async def test_unreachable_source_offers_upload_and_lists_attempts(client, fake_
     assert [a["method"] for a in view["error"]["details"]["attempts"]] == ["http", "browser"]
 
 
+@pytest.mark.parametrize(
+    ("reason", "code"), [("blocked", "URL_BLOCKED"), ("too_large", "FILE_TOO_LARGE")]
+)
+async def test_browser_is_not_tried_when_the_url_or_file_is_refused(
+    client, fake_fetchers, reason, code
+):
+    async def http(url, limit):
+        raise FetchFailed(reason)
+
+    fake_fetchers.http = http
+    view = await wait_for_end(client, await start_url(client))
+    assert view["error"]["code"] == code
+    assert events_of(view, "fetch_attempt") == [{"method": "http"}]
+
+
+async def test_a_language_that_is_not_text_is_rejected(client):
+    response = await client.post(
+        "/v1/documents", json={"url": "https://8.8.8.8/a.pdf", "language": ["hi"]}
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "INVALID_LANGUAGE"
+
+
+async def test_retrying_one_failed_page_keeps_a_document_marked_as_scanned(client, gateway):
+    gateway.ocr_failures = 1
+    content = make_scanned_pdf(seed=9, pages=4)
+    await wait_for_end(client, await upload(client, content))
+    view = await wait_for_end(client, await upload(client, content))
+    assert view["status"] == "completed"
+    assert view["document"]["is_scanned"] is True
+
+
 async def test_page_with_one_pdf_link_is_followed(client, fake_fetchers):
     content = make_pdf("3. A rule linked once from a listing page here.")
 

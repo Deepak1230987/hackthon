@@ -89,6 +89,17 @@ async def _fetch(run_id: str, url: str, deps: Deps) -> fetchers.Fetched:
             if result.links and len(result.links) == 1:
                 result = await fetcher(result.links[0]["url"], limit)
         except fetchers.FetchFailed as exc:
+            # Another tier can't help with these, and mustn't fetch the same address or file.
+            if exc.reason == "blocked":
+                raise RunFailed(
+                    "URL_BLOCKED", "That link points somewhere we can't fetch from.", action="upload"
+                ) from exc
+            if exc.reason == "too_large":
+                raise RunFailed(
+                    "FILE_TOO_LARGE",
+                    f"The file is larger than {deps.settings.max_pdf_mb} MB.",
+                    action="upload",
+                ) from exc
             attempts.append({"method": method, "reason": exc.reason})
             found_html = found_html or exc.reason == "not_a_pdf"
             continue

@@ -9,6 +9,7 @@ from urllib.parse import urljoin, urlsplit
 import certifi
 import httpx
 
+from app.acquisition.proxy import GuardedProxy
 from app.acquisition.ssrf import GuardedBackend, UrlRejected, check_url, is_public, parse_url
 
 CERTS = Path(__file__).parent / "certs"
@@ -98,15 +99,18 @@ async def http_fetch(
                 for _ in range(MAX_REDIRECTS + 1):
                     await check_url(url)
                     async with client.stream("GET", url) as response:
-                        if response.is_redirect:
+                        if response.has_redirect_location:
                             url = urljoin(url, response.headers["location"])
                             continue
-                        if response.status_code >= 400:
+                        if response.status_code >= 300:
                             raise FetchFailed(f"http_{response.status_code}")
                         return await _read(response, url, limit_bytes)
                 raise FetchFailed("too_many_redirects")
     except UrlRejected as exc:
         raise FetchFailed("blocked") from exc
+    except (ValueError, httpx.InvalidURL) as exc:
+        # A server can send a redirect that isn't a usable URL.
+        raise FetchFailed("bad_redirect") from exc
     except TimeoutError as exc:
         raise FetchFailed("timeout") from exc
     except httpx.TimeoutException as exc:
@@ -132,11 +136,21 @@ async def _read(response: httpx.Response, url: str, limit_bytes: int) -> Fetched
 
 
 async def browser_fetch(url: str, limit_bytes: int) -> Fetched:
-    # The sync API runs its own event loop in this thread. That also keeps it working on
-    # Windows, where the server's selector loop can't start a browser process.
-    return await asyncio.wait_for(
-        asyncio.to_thread(_browser_fetch, url, limit_bytes), timeout=TIMEOUT_S * 2
-    )
+    # A direct PDF can be read twice: once by the navigation, then by the download.
+    async with GuardedProxy(limit_bytes * 2 + MAX_HTML_BYTES) as proxy:
+        try:
+            # The sync API runs its own event loop in this thread. That also keeps it working on
+            # Windows, where the server's selector loop can't start a browser process.
+            return await asyncio.wait_for(
+                asyncio.to_thread(_browser_fetch, url, limit_bytes, proxy.url),
+                timeout=TIMEOUT_S * 2,
+            )
+        except FetchFailed as exc:
+            if exc.reason == "browser_error" and proxy.over_limit:
+                raise FetchFailed("too_large") from exc
+            if exc.reason == "browser_error" and proxy.blocked:
+                raise FetchFailed("blocked") from exc
+            raise
 
 
 def _public_url(url: str) -> bool:
@@ -148,9 +162,12 @@ def _public_url(url: str) -> bool:
     return all(is_public(info[4][0]) for info in infos)
 
 
-def _browser_fetch(url: str, limit_bytes: int) -> Fetched:
+def _browser_fetch(url: str, limit_bytes: int, proxy_url: str) -> Fetched:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
+
+    if not _public_url(url):
+        raise FetchFailed("blocked")
 
     def guard(route) -> None:
         request = route.request
@@ -163,7 +180,7 @@ def _browser_fetch(url: str, limit_bytes: int) -> Fetched:
 
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch()
+            browser = playwright.chromium.launch(proxy={"server": proxy_url})
             try:
                 context = browser.new_context(user_agent=USER_AGENT)
                 context.route("**/*", guard)

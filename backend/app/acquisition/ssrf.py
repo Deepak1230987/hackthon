@@ -10,6 +10,7 @@ import httpcore
 ALLOWED_PORTS = {80, 443}
 _OBSCURE_NUMERIC_HOST = re.compile(r"^(?:0x[0-9a-f]+|\d+)(?:\.(?:0x[0-9a-f]+|\d+)){0,3}\.?$", re.I)
 _DOTTED_QUAD = re.compile(r"^(?:[1-9]\d{0,2}|0)(?:\.(?:[1-9]\d{0,2}|0)){3}$")
+_CONTROL_CHARACTER = re.compile(r"[\x00-\x1f\x7f]")
 
 
 class UrlRejected(Exception):
@@ -21,10 +22,14 @@ class UrlRejected(Exception):
 
 def parse_url(url: str) -> tuple[str, int]:
     """Return (host, port), or reject a URL that isn't plain http(s) on a standard port."""
+    if _CONTROL_CHARACTER.search(url):
+        raise UrlRejected("INVALID_URL", "That link isn't valid.")
     try:
         parts = urlsplit(url)
         scheme, host = parts.scheme.lower(), parts.hostname
         port = parts.port or (443 if scheme == "https" else 80)
+        # DNS lookup raises on a name it can't encode, such as one with a 70-character label.
+        (host or "").encode("idna")
     except ValueError as exc:
         raise UrlRejected("INVALID_URL", "That link isn't valid.") from exc
     if scheme not in ("http", "https") or not host:

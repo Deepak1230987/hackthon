@@ -9,6 +9,7 @@ MIN_DRAWINGS_FOR_VISUALS = 50
 MIN_DRAWINGS_FOR_TABLE = 2
 OCR_DPI = 200
 BOLD_FLAG = 16
+RULE_TOLERANCE = 2
 
 
 @dataclass
@@ -69,9 +70,13 @@ def _lines(page: pymupdf.Page, table_boxes: list[pymupdf.Rect]) -> list[dict[str
 def _table_rows(page: pymupdf.Page) -> tuple[list[dict[str, Any]], list[pymupdf.Rect]]:
     rows: list[dict[str, Any]] = []
     boxes: list[pymupdf.Rect] = []
-    for table in page.find_tables().tables:
+    tables = page.find_tables().tables
+    verticals = _vertical_rules(page) if tables else []
+    for table in tables:
         if table.col_count < 2 or len(table.rows) < 2:
             continue  # A box drawn around text, not a real table.
+        if not _has_ruled_columns(table, verticals):
+            continue  # Columns guessed from text. A wrong guess would label amounts wrongly.
         boxes.append(pymupdf.Rect(table.bbox))
         names = [_clean(_cell_text(page, cell)) for cell in table.rows[0].cells]
         previous: list[str | None] = [None] * len(names)
@@ -86,6 +91,31 @@ def _table_rows(page: pymupdf.Page) -> tuple[list[dict[str, Any]], list[pymupdf.
             if text:
                 rows.append({"text": text, "bbox": [round(v, 1) for v in row.bbox]})
     return rows, boxes
+
+
+def _vertical_rules(page: pymupdf.Page) -> list[tuple[float, float, float]]:
+    """Each vertical edge drawn on the page, as (x, top, bottom)."""
+    rules = []
+    for drawing in page.get_drawings():
+        for item in drawing["items"]:
+            if item[0] == "l" and abs(item[1].x - item[2].x) <= RULE_TOLERANCE:
+                rules.append((item[1].x, min(item[1].y, item[2].y), max(item[1].y, item[2].y)))
+            elif item[0] == "re":
+                rect = item[1]
+                rules += [(rect.x0, rect.y0, rect.y1), (rect.x1, rect.y0, rect.y1)]
+    return rules
+
+
+def _has_ruled_columns(table, verticals: list[tuple[float, float, float]]) -> bool:
+    x0, top, x1, bottom = table.bbox
+    inner = {round(cell[0], 1) for cell in table.cells if cell and cell[0] > x0 + RULE_TOLERANCE}
+    return bool(inner) and all(
+        any(
+            abs(x - rule_x) <= RULE_TOLERANCE and rule_top < bottom and rule_bottom > top
+            for rule_x, rule_top, rule_bottom in verticals
+        )
+        for x in inner
+    )
 
 
 def _cell_text(page: pymupdf.Page, cell: tuple[float, ...] | None) -> str | None:

@@ -18,7 +18,8 @@ MERGE_GAP_LINES = 1.5
 
 _NUMBERED = re.compile(
     r"^\s*(?:"
-    r"[\d०-९০-৯]{1,3}[.)]\s"  # 1.  २)
+    r"[\d०-९০-৯]{1,3}[.)](?:\s|$)"  # 1.  २)  also a label alone on its line
+    r"|[ivxIVX]{1,5}\.(?:\s|$)"  # iv.
     r"|\d{1,3}(?:\.\d{1,3})+\.?\s+(?!lakh|crore|lac|%|percent|लाख|करोड़)"  # 3.2  but not 2.5 lakh
     r"|\(?[a-zA-Z]\)\s"  # (a)  a)
     r"|\([ivxIVX]{1,5}\)\s"  # (iv)

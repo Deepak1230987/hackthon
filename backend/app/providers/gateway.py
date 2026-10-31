@@ -8,16 +8,18 @@ from typing import Any
 import httpx
 
 from app.config import Settings
-from app.documents.ocr import OCR_PROMPT, OCR_SCHEMA
+from app.documents.ocr import OCR_KINDS, OCR_PROMPT, OCR_SCHEMA, OPENAI_OCR_SCHEMA
 
 log = logging.getLogger(__name__)
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 TIMEOUT_S = 45
 BACKOFF_S = (1, 2, 4)
 EMBED_BATCH = 64
 RETRYABLE = {429, 500, 502, 503, 504}
-MAX_REQUESTED_DELAY_S = 30
+# A per-minute limit clears within this. Daily quotas ask for hours.
+MAX_REQUESTED_DELAY_S = 65
 
 
 class ProviderUnavailable(Exception):
@@ -34,6 +36,14 @@ def _requested_delay(response: httpx.Response) -> float | None:
         return None
 
 
+def _ocr_items(items: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {"kind": item["kind"], "text": item["text"]}
+        for item in items
+        if item["kind"] in OCR_KINDS and item["text"].strip()
+    ]
+
+
 class Gateway:
     """Calls to AI providers. Failover to OpenAI, circuit breaking and budgets join in phase 3."""
 
@@ -41,6 +51,9 @@ class Gateway:
         self._settings = settings
         self._client = httpx.AsyncClient(
             headers={"x-goog-api-key": settings.gemini_api_key}, timeout=TIMEOUT_S
+        )
+        self._openai = httpx.AsyncClient(
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"}, timeout=TIMEOUT_S
         )
 
     async def _post(self, model: str, method: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -79,7 +92,13 @@ class Gateway:
                 ]
             }
             result = await self._post(model, "batchEmbedContents", body)
-            vectors += [item["values"] for item in result["embeddings"]]
+            try:
+                found = [item["values"] for item in result["embeddings"]]
+            except (KeyError, TypeError) as exc:
+                raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
+            if len(found) != len(batch):
+                raise ProviderUnavailable("unusable reply: wrong number of embeddings")
+            vectors += found
         return vectors
 
     async def vision_ocr(self, image: bytes) -> list[dict[str, str]]:
@@ -109,18 +128,52 @@ class Gateway:
         for model in models:
             try:
                 result = await self._post(model, "generateContent", body)
-                parts = result["candidates"][0]["content"]["parts"]
-                items = json.loads("".join(part.get("text", "") for part in parts))
-                return [
-                    {"kind": item["kind"], "text": item["text"]}
-                    for item in items
-                    if item["kind"] in ("para", "heading", "table_row") and item["text"].strip()
-                ]
+                candidate = result["candidates"][0]
+                if candidate.get("finishReason") == "RECITATION":
+                    # Gemini won't copy text it recognises, such as a quoted statute. Every
+                    # Gemini model refuses alike, so only another provider can read this page.
+                    failure = "recitation"
+                    break
+                parts = candidate["content"]["parts"]
+                return _ocr_items(json.loads("".join(part.get("text", "") for part in parts)))
             except ProviderUnavailable as exc:
                 failure = str(exc)
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 failure = f"unusable reply: {type(exc).__name__}"
+        if settings.openai_api_key and settings.llm_fallback_model:
+            try:
+                return await self._openai_ocr(image)
+            except ProviderUnavailable as exc:
+                failure = f"{failure}, then OpenAI: {exc}"
         raise ProviderUnavailable(failure)
+
+    async def _openai_ocr(self, image: bytes) -> list[dict[str, str]]:
+        url = f"data:image/png;base64,{base64.b64encode(image).decode()}"
+        body = {
+            "model": self._settings.llm_fallback_model,
+            "temperature": 0,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": OCR_PROMPT},
+                        {"type": "image_url", "image_url": {"url": url}},
+                    ],
+                }
+            ],
+            "response_format": {"type": "json_schema", "json_schema": OPENAI_OCR_SCHEMA},
+        }
+        try:
+            response = await self._openai.post(OPENAI_URL, json=body)
+            if response.status_code != 200:
+                raise ProviderUnavailable(f"status {response.status_code}")
+            content = response.json()["choices"][0]["message"]["content"]
+            return _ocr_items(json.loads(content)["items"])
+        except httpx.HTTPError as exc:
+            raise ProviderUnavailable(type(exc).__name__) from exc
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 
     async def close(self) -> None:
         await self._client.aclose()
+        await self._openai.aclose()
