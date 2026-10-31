@@ -38,6 +38,7 @@ export const RUN_EVENT_TYPES = [
   "fetch_attempt",
   "page_ocr",
   "segment_done",
+  "embeddings_done",
   "triage_result",
   "claim_extracted",
   "claim_verified",
@@ -68,14 +69,41 @@ export type DocumentView = {
   fetch_method: "http" | "browser" | "upload";
   fetched_at: string;
   sha256: string;
+  issuing_authority?: string | null;
   issue_date?: string | null;
   page_count: number;
+  is_scanned: boolean;
+};
+
+// GET /v1/documents/{id}/clauses. page is 1-based. bbox is [x0, y0, x1, y1] in
+// PDF points from the top left, or null for OCR.
+export type Clause = {
+  id: string;
+  ordinal: number;
+  page: number;
+  bbox: [number, number, number, number] | null;
+  text: string;
+  lang: string;
+  kind: "heading" | "para" | "table_row";
+  extraction: "native" | "ocr";
+};
+
+export type DocumentClauses = {
+  clauses: Clause[];
+  failed_pages: number[];
+};
+
+// One choice in details.options of a MULTIPLE_PDFS error.
+export type SourceOption = {
+  url: string;
+  label: string;
 };
 
 // GET /v1/runs/{id}
 export type RunSnapshot = {
   id: string;
   status: RunStatus;
+  language?: string;
   document?: DocumentView | null;
   error?: ApiError | null;
   events: RunEvent[];
@@ -95,7 +123,9 @@ export type Step = {
 
 export type RunView = {
   status: RunStatus;
+  language?: string;
   document?: DocumentView;
+  clausesReady: boolean;
   steps: Step[];
   error?: ApiError;
 };

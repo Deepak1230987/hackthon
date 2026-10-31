@@ -32,6 +32,7 @@ class FakeGateway:
         self.embed_calls = 0
         self.ocr_failures = 0
         self.embed_fails = False
+        self.embed_hangs = False
         self.prompts: dict[str, list[str]] = {}
         # A test sets these. Each entry is a reply, or an exception to raise.
         self.replies: dict[str, list] = {"triage": [], "extract": [], "repair": [], "entail": []}
@@ -73,6 +74,8 @@ class FakeGateway:
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         self.embed_calls += 1
+        if self.embed_hangs:
+            await asyncio.sleep(3600)
         if self.embed_fails:
             raise ProviderUnavailable("status 503")
         return [[0.1] * self.dim for _ in texts]

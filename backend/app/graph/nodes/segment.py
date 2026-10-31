@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import uuid
 
 from sqlalchemy import func, insert, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Clause, DocumentPage
 from app.documents.normalize import detect_language, normalize
@@ -11,6 +13,8 @@ from app.graph.state import RunState
 from app.providers.gateway import EMBED_BATCH, ProviderUnavailable
 
 log = logging.getLogger(__name__)
+
+EMBED_TIMEOUT_S = 60
 
 
 async def segment(state: RunState, deps: Deps) -> dict:
@@ -58,6 +62,7 @@ async def segment(state: RunState, deps: Deps) -> dict:
                     )
             if rows:
                 await session.execute(insert(Clause), rows)
+                await _renumber(session, document_id)
             await session.execute(
                 update(DocumentPage)
                 .where(
@@ -80,13 +85,34 @@ async def segment(state: RunState, deps: Deps) -> dict:
             "NO_READABLE_TEXT", "We couldn't find any text in this document.", action="upload"
         )
 
-    embedded = await _embed_missing(document_id, deps)
+    # Before embedding, because the clauses can be read now and rate limits can make embedding slow.
     await deps.events.emit(
-        state["run_id"],
-        "segment_done",
-        {"clauses": total, "failed_pages": failed_pages, "embedded": embedded},
+        state["run_id"], "segment_done", {"clauses": total, "failed_pages": failed_pages}
     )
+    embedded = await _embed_missing(document_id, deps)
+    await deps.events.emit(state["run_id"], "embeddings_done", {"embedded": embedded})
     return {"partial": True} if failed_pages else {}
+
+
+async def _renumber(session: AsyncSession, document_id: uuid.UUID) -> None:
+    """Keep ordinals in reading order when a retry recovers an earlier page.
+
+    Citations store clause ids, so they survive this. Going through negative numbers
+    keeps the unique constraint on (document_id, ordinal) satisfied at every row.
+    """
+    await session.execute(
+        text(
+            "UPDATE clauses c SET ordinal = -r.position FROM ("
+            "  SELECT id, row_number() OVER (ORDER BY page, ordinal) AS position"
+            "  FROM clauses WHERE document_id = :id"
+            ") r WHERE c.id = r.id"
+        ),
+        {"id": document_id},
+    )
+    await session.execute(
+        text("UPDATE clauses SET ordinal = -ordinal WHERE document_id = :id"),
+        {"id": document_id},
+    )
 
 
 async def _embed_missing(document_id: uuid.UUID, deps: Deps) -> bool:
@@ -100,16 +126,20 @@ async def _embed_missing(document_id: uuid.UUID, deps: Deps) -> bool:
             )
         ).all()
     try:
-        for start in range(0, len(rows), EMBED_BATCH):
-            batch = rows[start : start + EMBED_BATCH]
-            vectors = await deps.gateway.embed([row.text for row in batch])
-            async with deps.sessions() as session:
-                await session.execute(
-                    update(Clause),
-                    [{"id": row.id, "embedding": v} for row, v in zip(batch, vectors, strict=True)],
-                )
-                await session.commit()
-    except ProviderUnavailable as exc:
+        async with asyncio.timeout(EMBED_TIMEOUT_S):
+            for start in range(0, len(rows), EMBED_BATCH):
+                batch = rows[start : start + EMBED_BATCH]
+                vectors = await deps.gateway.embed([row.text for row in batch])
+                async with deps.sessions() as session:
+                    await session.execute(
+                        update(Clause),
+                        [
+                            {"id": row.id, "embedding": v}
+                            for row, v in zip(batch, vectors, strict=True)
+                        ],
+                    )
+                    await session.commit()
+    except (ProviderUnavailable, TimeoutError) as exc:
         log.warning("Embedding failed for document %s: %s", document_id, exc)
         return False
     return True

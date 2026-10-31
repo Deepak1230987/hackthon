@@ -20,7 +20,7 @@ export type RunAction =
   | { type: "rejected"; error: ApiError };
 
 export const initialRunState: RunState = {
-  view: { status: "queued", steps: [] },
+  view: { status: "queued", clausesReady: false, steps: [] },
   seen: new Set(),
   maxSeq: -1,
 };
@@ -106,6 +106,7 @@ function applyEvent(state: RunState, event: RunEvent): RunState {
     view.status = event.payload.status as RunStatus;
     if (event.payload.error) view.error = event.payload.error as ApiError;
   }
+  if (event.type === "segment_done") view.clausesReady = true;
   return { view, seen, maxSeq: Math.max(state.maxSeq, event.seq) };
 }
 
@@ -118,6 +119,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       const next = action.run.events.reduce(applyEvent, state);
       const view = {
         ...next.view,
+        language: action.run.language ?? next.view.language,
         document: action.run.document ?? next.view.document,
       };
       // A snapshot requested before newer stream events arrived must not move

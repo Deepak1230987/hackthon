@@ -5,12 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "pdfjs:copy": "node scripts/copy-pdfjs-assets.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "node --test lib/*.test.ts"
   },
   "dependencies": {
     "next": "16.4.3",
+    "pdfjs-dist": "6.4.299",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
