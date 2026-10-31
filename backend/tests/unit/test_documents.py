@@ -277,6 +277,41 @@ def test_list_label_alone_on_its_line_starts_the_next_clause():
     ]
 
 
+def _page_with_image(share: float, caption: str) -> bytes:
+    document = pymupdf.open()
+    page = document.new_page()
+    pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
+    side = (abs(page.rect) * share) ** 0.5
+    page.insert_image(pymupdf.Rect(50, 300, 50 + side, 300 + side), pixmap=pixmap)
+    page.insert_textbox(pymupdf.Rect(50, 50, 550, 280), caption)
+    return document.tobytes()
+
+
+CAPTION = "Additional assistance under the scheme, shown in the chart below."
+
+
+def test_chart_with_a_caption_is_routed_to_ocr():
+    # Found on a real scheme booklet: the amounts were in the image, under a one-line heading.
+    extracted = extract_pages(_page_with_image(0.26, CAPTION), [1])[0]
+    assert extracted.ocr_reason == "figure_with_little_text"
+
+
+def test_small_logo_above_a_short_notice_keeps_its_text():
+    extracted = extract_pages(_page_with_image(0.02, CAPTION), [1])[0]
+    assert extracted.ocr_reason is None
+
+
+def test_image_beside_plenty_of_text_keeps_its_text():
+    extracted = extract_pages(_page_with_image(0.26, ENGLISH), [1])[0]
+    assert extracted.ocr_reason is None
+
+
+def test_short_caption_with_broken_shaping_is_routed_to_ocr():
+    # A footer from the same booklet, for "पीएमएवाई-जी : सम्मान का द्वार".
+    caption = "पीएमएवाई-जी : सम्ान का द्ार पीएमएवाई-जी में अतिरिक्त सुविधा"
+    assert ocr_reason(caption, [], False) == "broken_shaping"
+
+
 def test_scanned_page_is_routed_to_ocr():
     document = pymupdf.open()
     pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)

@@ -27,6 +27,9 @@ MIN_TEXT_CHARS = 40
 MAX_REPLACEMENT_RATIO = 0.02
 MIN_BROKEN_SEQUENCES = 3
 MAX_BROKEN_RATIO = 0.002
+MIN_BROKEN_IN_SHORT_TEXT = 2
+MIN_BROKEN_RATIO_IN_SHORT_TEXT = 0.02
+MAX_CAPTION_CHARS = 300
 MIN_LATIN_WORDS = 30
 MIN_COMMON_WORD_RATIO = 0.04
 MIN_SYMBOL_RATIO = 0.04
@@ -44,7 +47,10 @@ def broken_shaping(text: str) -> tuple[int, float]:
 
 def has_broken_shaping(text: str) -> bool:
     broken, ratio = broken_shaping(text)
-    return broken >= MIN_BROKEN_SEQUENCES and ratio > MAX_BROKEN_RATIO
+    if broken >= MIN_BROKEN_SEQUENCES and ratio > MAX_BROKEN_RATIO:
+        return True
+    # A caption is too short to reach the count above, but two in a few words can't be chance.
+    return broken >= MIN_BROKEN_IN_SHORT_TEXT and ratio >= MIN_BROKEN_RATIO_IN_SHORT_TEXT
 
 
 def legacy_font_pattern(text: str, fonts: list[str]) -> bool:
@@ -59,7 +65,9 @@ def legacy_font_pattern(text: str, fonts: list[str]) -> bool:
     return common < MIN_COMMON_WORD_RATIO and symbols > MIN_SYMBOL_RATIO
 
 
-def ocr_reason(text: str, fonts: list[str], has_visuals: bool) -> str | None:
+def ocr_reason(
+    text: str, fonts: list[str], has_visuals: bool, has_figure: bool = False
+) -> str | None:
     """Why this page can't trust its text layer, or None if it can."""
     if len(text.strip()) < MIN_TEXT_CHARS:
         # With nothing else on the page, a short text layer is simply all there is to read.
@@ -70,4 +78,7 @@ def ocr_reason(text: str, fonts: list[str], has_visuals: bool) -> str | None:
         return "broken_shaping"
     if legacy_font_pattern(text, fonts):
         return "legacy_font"
+    # A chart with a caption: the text layer has the caption, and the amounts are in the image.
+    if has_figure and len(text.strip()) < MAX_CAPTION_CHARS:
+        return "figure_with_little_text"
     return None

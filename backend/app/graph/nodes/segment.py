@@ -2,6 +2,7 @@ import logging
 import uuid
 
 from sqlalchemy import func, insert, select, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Clause, DocumentPage
 from app.documents.normalize import detect_language, normalize
@@ -58,6 +59,7 @@ async def segment(state: RunState, deps: Deps) -> dict:
                     )
             if rows:
                 await session.execute(insert(Clause), rows)
+                await _renumber(session, document_id)
             await session.execute(
                 update(DocumentPage)
                 .where(
@@ -87,6 +89,27 @@ async def segment(state: RunState, deps: Deps) -> dict:
         {"clauses": total, "failed_pages": failed_pages, "embedded": embedded},
     )
     return {"partial": True} if failed_pages else {}
+
+
+async def _renumber(session: AsyncSession, document_id: uuid.UUID) -> None:
+    """Keep ordinals in reading order when a retry recovers an earlier page.
+
+    Citations store clause ids, so they survive this. Going through negative numbers
+    keeps the unique constraint on (document_id, ordinal) satisfied at every row.
+    """
+    await session.execute(
+        text(
+            "UPDATE clauses c SET ordinal = -r.position FROM ("
+            "  SELECT id, row_number() OVER (ORDER BY page, ordinal) AS position"
+            "  FROM clauses WHERE document_id = :id"
+            ") r WHERE c.id = r.id"
+        ),
+        {"id": document_id},
+    )
+    await session.execute(
+        text("UPDATE clauses SET ordinal = -ordinal WHERE document_id = :id"),
+        {"id": document_id},
+    )
 
 
 async def _embed_missing(document_id: uuid.UUID, deps: Deps) -> bool:
