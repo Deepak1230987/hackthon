@@ -76,12 +76,27 @@ class _LinkParser(HTMLParser):
             self._href = None
 
 
+def _undo_double_encoding(url: str) -> str:
+    """Some sites encode a Hindi file name twice, so the link as published doesn't work.
+
+    Real on pmkisan.gov.in, whose Hindi guidelines link gets a 400 until this is undone.
+    A link that wasn't encoded twice fails this conversion and is left as it is.
+    """
+    try:
+        raw = b"".join(
+            bytes([ord(c)]) if ord(c) < 256 else c.encode("cp1252") for c in url
+        )
+        return raw.decode("utf-8")
+    except ValueError:
+        return url
+
+
 def pdf_links(html: str, base_url: str) -> list[dict[str, str]]:
     parser = _LinkParser()
     parser.feed(html)
     found: dict[str, str] = {}
     for href, label in parser.links:
-        url = urljoin(base_url, href)
+        url = _undo_double_encoding(urljoin(base_url, href))
         if urlsplit(url).path.lower().endswith(".pdf") and url not in found:
             found[url] = label[:200]
     return [{"url": url, "label": label} for url, label in found.items()][:MAX_LINK_OPTIONS]

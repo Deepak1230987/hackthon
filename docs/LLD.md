@@ -44,7 +44,7 @@ docker-compose.yml  Caddyfile  .env.example  README.md
 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SARVAM_API_KEY` | Providers |
 | `LLM_PRIMARY_MODEL`, `LLM_FALLBACK_MODEL`, `OCR_MODEL`, `EMBEDDING_MODEL`, `EMBEDDING_DIM` | Fixed at hour 0 from the providers' live model lists |
 | `TTS_MODEL`, `TRANSLATE_MODEL`, `STT_MODEL` | Default `bulbul:v4-flash`, `sarvam-translate:v1`, `saaras:v4` |
-| `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=180` | Limits |
+| `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=420` | Limits |
 | `MAX_PDF_MB=50`, `MAX_PAGES=200`, `PROFILE_TTL_S=3600` | Limits |
 | `CROSS_PROVIDER_VERIFY=false` | Use the other provider for entailment |
 | `ALLOWED_ORIGINS` | CORS |
@@ -225,8 +225,11 @@ def needs_ocr(page) -> bool:
     if replacement_ratio(text) > 0.02: return True
     if has_broken_shaping(text): return True
     if legacy_font_pattern(page, text): return True
+    if has_figure(page) and len(text.strip()) < 300: return True   # chart with a caption
     return False
 ```
+
+`has_figure` means images covering at least 15% of the page, or more than 50 vector drawings. On the PMAY-G Hindi booklet, a page with a one-line heading had its amounts only inside a chart image, so the text layer alone lost them.
 
 `has_broken_shaping` catches a corruption found on most pages of every Devanagari PDF we tested, in valid Unicode and with modern fonts: `ग्ामीीण` for `ग्रामीण`. It counts sequences no font can produce: a repeated vowel sign, a vowel sign after a virama, and a vowel sign with no consonant. These PDFs go to OCR, so Hindi documents depend on OCR quota and speed. A page with little text and no images is kept as it is, and doesn't use OCR.
 
@@ -238,7 +241,7 @@ Render at 200 DPI and send to `OCR_MODEL`, then `OCR_FALLBACK_MODEL`, with a pro
 
 Gemini refuses pages that quote known text such as a statute, returning `finishReason=RECITATION` on every model. Those pages go to `LLM_FALLBACK_MODEL` on OpenAI if it is configured. Otherwise they are recorded as failed with reason `recitation`, and the run ends as `partial`. We do not try to get around the refusal.
 
-Each page is saved to `document_pages` as soon as it's read, so a retry or a later run of the same file only reads the pages still missing. A run that times out can therefore be started again without losing progress. Clauses recovered later are added with new ordinals, so citations from earlier runs stay valid.
+Each page is saved to `document_pages` as soon as it's read, so a retry or a later run of the same file only reads the pages still missing. A run that times out can therefore be started again without losing progress. When a later run recovers a page, the document's ordinals are renumbered so they stay in reading order. Citations store clause ids, so they stay valid.
 
 ### 6.3 Segmentation
 

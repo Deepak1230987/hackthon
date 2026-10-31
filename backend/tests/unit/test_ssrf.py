@@ -173,6 +173,25 @@ async def test_redirect_to_an_unusable_url_is_a_clean_failure():
     assert caught.value.reason == "bad_redirect"
 
 
+def test_pdf_link_encoded_twice_is_repaired():
+    # As published on pmkisan.gov.in: UTF-8 bytes read as Windows-1252, then encoded again.
+    name = "प्रधानमंत्री किसान.pdf"
+    mangled = "".join(
+        bytes([b]).decode("cp1252") if b not in (0x81, 0x8D, 0x8F, 0x90, 0x9D) else chr(b)
+        for b in name.encode()
+    )
+    html = f'<a href="/Documents/{mangled}">Hindi Version</a>'
+    assert pdf_links(html, "https://8.8.8.8/")[0]["url"] == f"https://8.8.8.8/Documents/{name}"
+
+
+@pytest.mark.parametrize(
+    "name", ["प्रधानमंत्री.pdf", "Yojanā é.pdf", "plain name.pdf"]
+)
+def test_pdf_link_encoded_once_is_left_alone(name):
+    html = f'<a href="/{name}">x</a>'
+    assert pdf_links(html, "https://8.8.8.8/")[0]["url"] == f"https://8.8.8.8/{name}"
+
+
 def test_pdf_links_are_deduplicated():
     html = '<a href="a.pdf">x</a><a href="a.pdf">y</a>'
     assert len(pdf_links(html, "https://8.8.8.8/")) == 1

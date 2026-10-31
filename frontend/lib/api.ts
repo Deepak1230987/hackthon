@@ -1,4 +1,9 @@
-import type { ApiError, RunSnapshot } from "./types";
+import type {
+  ApiError,
+  DocumentClauses,
+  DocumentView,
+  RunSnapshot,
+} from "./types";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -57,6 +62,57 @@ export async function uploadDocument(
   });
   const { run_id } = (await response.json()) as { run_id: string };
   return run_id;
+}
+
+export async function submitUrl(
+  url: string,
+  language: string,
+): Promise<string> {
+  const response = await request("/v1/documents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, language }),
+  });
+  const { run_id } = (await response.json()) as { run_id: string };
+  return run_id;
+}
+
+export async function fetchLibrary(): Promise<DocumentView[]> {
+  const response = await request("/v1/library", { cache: "no-store" });
+  const { documents } = (await response.json()) as {
+    documents: DocumentView[];
+  };
+  return documents;
+}
+
+export async function startLibraryRun(
+  documentId: string,
+  language: string,
+): Promise<string> {
+  const response = await request(
+    `/v1/library/${encodeURIComponent(documentId)}/runs`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language }),
+    },
+  );
+  const { run_id } = (await response.json()) as { run_id: string };
+  return run_id;
+}
+
+export async function fetchClauses(
+  documentId: string,
+): Promise<DocumentClauses> {
+  const response = await request(
+    `/v1/documents/${encodeURIComponent(documentId)}/clauses`,
+    { cache: "no-store" },
+  );
+  return (await response.json()) as DocumentClauses;
+}
+
+export function documentFileUrl(documentId: string): string {
+  return `${API_URL}/v1/documents/${encodeURIComponent(documentId)}/file`;
 }
 
 export async function fetchRun(runId: string): Promise<RunSnapshot> {
