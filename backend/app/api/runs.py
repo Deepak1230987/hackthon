@@ -31,7 +31,7 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
         "id": str(run.id),
         "status": run.status,
         "language": run.language,
-        "document": _document_view(document) if document else None,
+        "document": document_view(document) if document else None,
         "error": error,
         "events": [{"seq": e.seq, "type": e.type, "payload": e.payload} for e in events],
     }
@@ -80,7 +80,7 @@ def _format(event: RunEvent) -> str:
     return f"id: {event.seq}\nevent: {event.type}\ndata: {json.dumps(event.payload)}\n\n"
 
 
-def _document_view(document: Document) -> dict:
+def document_view(document: Document) -> dict:
     return {
         "id": str(document.id),
         "sha256": document.sha256,
@@ -88,6 +88,7 @@ def _document_view(document: Document) -> dict:
         "fetch_method": document.fetch_method,
         "fetched_at": document.fetched_at.isoformat(),
         "page_count": document.page_count,
+        "is_scanned": document.is_scanned,
         "title": document.title,
         "issuing_authority": document.issuing_authority,
         "issue_date": document.issue_date.isoformat() if document.issue_date else None,

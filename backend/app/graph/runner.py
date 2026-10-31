@@ -45,9 +45,9 @@ class RunRunner:
             try:
                 await self._set_status(run_id, "running")
                 async with asyncio.timeout(self._deps.settings.run_timeout_s):
-                    await self._invoke(run_id, language, source)
+                    result = await self._invoke(run_id, language, source)
             except RunFailed as exc:
-                await self._fail(run_id, exc.code, exc.message, exc.action)
+                await self._fail(run_id, exc.code, exc.message, exc.action, exc.details)
             except TimeoutError:
                 await self._fail(
                     run_id, "RUN_TIMEOUT", "This run took too long and was stopped.", "retry"
@@ -56,19 +56,27 @@ class RunRunner:
                 log.exception("Run %s failed", run_id)
                 await self._fail(run_id, "INTERNAL_ERROR", "Something went wrong.", "retry")
             else:
-                await self._set_status(run_id, "completed", finished=True)
+                status = "partial" if result.get("partial") else "completed"
+                await self._set_status(run_id, status, finished=True)
 
-    async def _invoke(self, run_id: str, language: str, source: SourceRequest) -> None:
+    async def _invoke(self, run_id: str, language: str, source: SourceRequest) -> dict[str, Any]:
         config = {"configurable": {"thread_id": run_id}}
         checkpoint = await self._graph.aget_state(config)
         # With a checkpoint, None continues from it. Without one, start from the beginning.
         started = bool(checkpoint.values)
-        await self._graph.ainvoke(
+        return await self._graph.ainvoke(
             None if started else initial_state(run_id, language, source), config
         )
 
-    async def _fail(self, run_id: str, code: str, message: str, action: str | None) -> None:
-        error = {"code": code, "message": message, "action": action, "details": {}}
+    async def _fail(
+        self,
+        run_id: str,
+        code: str,
+        message: str,
+        action: str | None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        error = {"code": code, "message": message, "action": action, "details": details or {}}
         await self._set_status(run_id, "failed", finished=True, error=error)
 
     async def _set_status(

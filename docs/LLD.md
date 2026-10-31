@@ -209,7 +209,7 @@ async def acquire(req):
 | TLS | Verify using certifi plus any missing government intermediates we add. Never disable verification |
 | Limits | 45 s, 50 MB while streaming |
 | File validation | `%PDF-` header, opens in PyMuPDF, not encrypted, at least 1 page |
-| HTML page with PDF links | One link: follow. Several: return options to the user |
+| HTML page with PDF links | One link: follow. Several: the run ends with `MULTIPLE_PDFS`, with `details.options` as `[{url, label}]`. The UI starts a new run with the chosen URL |
 | Deduplication | SHA-256 match reuses stored clauses and saves LLM cost |
 
 ## 6. Document intelligence
@@ -221,15 +221,20 @@ def needs_ocr(page) -> bool:
     text = page.get_text()
     if len(text.strip()) < 40: return True            # scan or image page
     if replacement_ratio(text) > 0.02: return True
+    if has_broken_shaping(text): return True
     if legacy_font_pattern(page, text): return True
     return False
 ```
+
+`has_broken_shaping` catches a corruption found on most pages of every Devanagari PDF we tested, in valid Unicode and with modern fonts: `ग्ामीीण` for `ग्रामीण`. It counts sequences no font can produce: a repeated vowel sign, a vowel sign after a virama, and a vowel sign with no consonant. These PDFs go to OCR, so Hindi documents depend on OCR quota and speed. A page with little text and no images is kept as it is, and doesn't use OCR.
 
 `legacy_font_pattern` flags two things: font names containing `Kruti`, `DevLys`, `Chanakya` or `Shusha`, and pages with an expected Hindi context but Latin text with a low dictionary-word ratio and many unusual symbols. Tune it on real Hindi PDFs in phase 2.
 
 ### 6.2 OCR
 
-Render at 200 DPI and send to `OCR_MODEL` with a prompt requiring a JSON list of `{kind, text, lang}` in reading order. Text must be copied exactly and illegible parts marked `[illegible]`. Run up to 5 pages concurrently, and record failed pages so they appear in the UI. OCR clauses have `bbox = NULL`.
+Render at 200 DPI and send to `OCR_MODEL`, then `OCR_FALLBACK_MODEL`, with a prompt requiring a JSON list of `{kind, text}` in reading order. Language comes from our own detection. Text must be copied exactly and illegible parts marked `[illegible]`. Run up to 5 pages concurrently, and record failed pages so they appear in the UI. OCR clauses have `bbox = NULL`.
+
+Each page is saved to `document_pages` as soon as it's read, so a retry or a later run of the same file only reads the pages still missing. A run that times out can therefore be started again without losing progress. Clauses recovered later are added with new ordinals, so citations from earlier runs stay valid.
 
 ### 6.3 Segmentation
 
@@ -461,12 +466,12 @@ Limits: 500 characters per question and 20 questions per run.
 | `GET /v1/library` | | Prepared documents with provenance |
 | `POST /v1/library/{document_id}/runs` | `{language}` | `202 {run_id}` |
 | `GET /v1/documents/{id}/file` | | PDF stream |
+| `GET /v1/documents/{id}/clauses` | | `{clauses: [{id, ordinal, page, bbox, text, lang, kind, extraction}], failed_pages}`. `page` is 1-based. `bbox` is `[x0, y0, x1, y1]` in PDF points from the top left, or `null` for OCR |
 | `GET /v1/runs/{id}` | | Full run view, also the polling fallback |
 | `GET /v1/runs/{id}/events` | `Last-Event-ID` | SSE stream |
 | `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}` |
 | `POST /v1/runs/{id}/stt` | Multipart audio, `field` | `{transcript, parsed, confidence}` |
 | `POST /v1/runs/{id}/qa` | `{question, language}` | `{answer, citations, audio_url, abstained}` |
-| `POST /v1/runs/{id}/select-source` | `{url}` | `202` |
 | `POST /v1/runs/{id}/page-range` | `{from, to}` | `202` |
 | `GET /v1/health` | | Database, provider and credit flags |
 
@@ -487,7 +492,10 @@ Limits: 500 characters per question and 20 questions per run.
 | `DOC_TOO_LONG` | Event | Choose a page range |
 | `NOT_A_POLICY` | Event | Try another document |
 | `PROVIDERS_UNAVAILABLE` | Event | Retry the run |
-| `RUN_NOT_FOUND` | 404 | Start again |
+| `MULTIPLE_PDFS` | Event | Choose from `details.options` |
+| `NO_READABLE_TEXT` | Event | Try another file |
+| `RUN_TIMEOUT` | Event | Retry the run; finished pages are kept |
+| `RUN_NOT_FOUND`, `DOCUMENT_NOT_FOUND` | 404 | Start again |
 
 ### 12.3 SSE
 
@@ -515,8 +523,8 @@ The frontend builds the trace only from these events, so a refresh, an SSE repla
 | `node_started` | `{node}` | A node began. Emit it again on retry or resume |
 | `node_finished` | `{node, duration_ms, implemented}` | A node ended normally. `implemented: false` marks a pass-through, shown as "Not built yet" |
 | `fetch_attempt` | `{method}` | `http`, `browser` or `upload` |
-| `page_ocr` | `{page}` | |
-| `segment_done` | `{clauses}` | Clause count |
+| `page_ocr` | `{page, reason}`, or `{page, failed: true}` | A page started or failed OCR |
+| `segment_done` | `{clauses, failed_pages, embedded}` | Clause count, and pages that couldn't be read |
 | `triage_result` | `{is_policy}` | |
 | `claim_extracted` | `{claim_id, field}` | |
 | `claim_verified` | `{claim_id}` | |

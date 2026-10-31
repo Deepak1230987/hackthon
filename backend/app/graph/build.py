@@ -6,7 +6,9 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph.deps import Deps
 from app.graph.nodes.acquire import acquire
+from app.graph.nodes.parse import parse
 from app.graph.nodes.passthrough import passthrough
+from app.graph.nodes.segment import segment
 from app.graph.state import RunState
 
 Node = Callable[[RunState, Deps], Awaitable[dict | None]]
@@ -14,8 +16,8 @@ Node = Callable[[RunState, Deps], Awaitable[dict | None]]
 # In workflow order. Each entry is replaced as its phase is built.
 NODES: list[tuple[str, Node]] = [
     ("acquire", acquire),
-    ("parse", passthrough),
-    ("segment", passthrough),
+    ("parse", parse),
+    ("segment", segment),
     ("triage", passthrough),
     ("extract", passthrough),
     ("verify", passthrough),

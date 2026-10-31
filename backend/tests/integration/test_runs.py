@@ -130,8 +130,17 @@ async def test_request_errors_use_the_error_format(client):
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "RUN_NOT_FOUND"
 
-    url_input = await client.post("/v1/documents", json={"url": "https://x.in", "language": "hi"})
-    assert url_input.json()["error"]["code"] == "URL_INPUT_UNAVAILABLE"
+    bad_scheme = await client.post(
+        "/v1/documents", json={"url": "ftp://example.gov.in/a.pdf", "language": "hi"}
+    )
+    assert bad_scheme.status_code == 400
+    assert bad_scheme.json()["error"]["code"] == "INVALID_URL"
+
+    internal = await client.post(
+        "/v1/documents", json={"url": "http://127.0.0.1/a.pdf", "language": "hi"}
+    )
+    assert internal.status_code == 400
+    assert internal.json()["error"]["code"] == "URL_BLOCKED"
 
     bad_language = await client.post(
         "/v1/documents",
@@ -163,11 +172,11 @@ async def test_status_is_not_saved_without_its_event(app, client):
     assert view["status"] == "completed"
 
 
-async def test_restart_resumes_an_interrupted_run(settings, storage):
+async def test_restart_resumes_an_interrupted_run(settings, storage, gateway):
     content = make_pdf("restart")
     storage.hold = asyncio.Event()
 
-    first = create_app(settings, storage)
+    first = create_app(settings, storage, gateway)
     async with first.router.lifespan_context(first):
         transport = httpx.ASGITransport(app=first)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
@@ -177,7 +186,7 @@ async def test_restart_resumes_an_interrupted_run(settings, storage):
     assert storage.objects == {}
 
     storage.hold = None
-    second = create_app(settings, storage)
+    second = create_app(settings, storage, gateway)
     async with second.router.lifespan_context(second):
         transport = httpx.ASGITransport(app=second)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:

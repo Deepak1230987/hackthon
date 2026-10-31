@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_primary_model: str = ""
     llm_fallback_model: str = ""
     ocr_model: str = ""
+    ocr_fallback_model: str = ""
     embedding_model: str = ""
     embedding_dim: int | None = None
     tts_model: str = "bulbul:v4-flash"
