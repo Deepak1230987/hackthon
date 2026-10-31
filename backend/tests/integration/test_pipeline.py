@@ -109,7 +109,7 @@ async def test_second_run_does_no_repeat_work(client, gateway):
     assert await clauses_of(client, second) == before
 
 
-async def test_failed_ocr_page_is_reported_then_recovered_without_moving_clauses(client, gateway):
+async def test_failed_ocr_page_is_reported_then_recovered_in_reading_order(client, gateway):
     gateway.ocr_failures = 1
     content = make_scanned_pdf(seed=4, pages=2)
     first = await wait_for_end(client, await upload(client, content))
@@ -117,15 +117,18 @@ async def test_failed_ocr_page_is_reported_then_recovered_without_moving_clauses
     body = await clauses_of(client, first)
     assert len(body["failed_pages"]) == 1
     assert events_of(first, "segment_done")[0]["failed_pages"] == body["failed_pages"]
-    kept = {c["id"]: c["ordinal"] for c in body["clauses"]}
+    kept = {c["id"]: c["text"] for c in body["clauses"]}
 
     second = await wait_for_end(client, await upload(client, content))
     assert second["status"] == "completed"
     after = await clauses_of(client, second)
     assert after["failed_pages"] == []
     assert len(after["clauses"]) == 2 * len(kept)
-    # Citations held by earlier runs must keep pointing at the same rows.
-    assert {c["id"]: c["ordinal"] for c in after["clauses"] if c["id"] in kept} == kept
+    # Citations held by earlier runs store ids, which must keep pointing at the same text.
+    assert {c["id"]: c["text"] for c in after["clauses"] if c["id"] in kept} == kept
+    assert [c["ordinal"] for c in after["clauses"]] == list(range(1, len(after["clauses"]) + 1))
+    pages = [c["page"] for c in after["clauses"]]
+    assert pages == sorted(pages)
 
 
 async def test_all_pages_failing_is_a_clear_error(client, gateway):

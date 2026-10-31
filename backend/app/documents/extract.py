@@ -7,6 +7,7 @@ from app.documents.garble import ocr_reason
 
 MIN_DRAWINGS_FOR_VISUALS = 50
 MIN_DRAWINGS_FOR_TABLE = 2
+MIN_FIGURE_SHARE = 0.15
 OCR_DPI = 200
 BOLD_FLAG = 16
 RULE_TOLERANCE = 2
@@ -34,13 +35,22 @@ def _extract_page(page: pymupdf.Page, number: int) -> ExtractedPage:
     fonts = [font[3] for font in page.get_fonts()]
     drawings = len(page.get_cdrawings())
     visuals = bool(page.get_images()) or drawings > MIN_DRAWINGS_FOR_VISUALS
-    reason = ocr_reason(text, fonts, visuals)
+    figure = drawings > MIN_DRAWINGS_FOR_VISUALS or _image_share(page) >= MIN_FIGURE_SHARE
+    reason = ocr_reason(text, fonts, visuals, figure)
     if reason:
         return ExtractedPage(number, None, reason)
     # Table detection is the slowest step by far, and a table needs ruled lines to find.
     rows, table_boxes = _table_rows(page) if drawings >= MIN_DRAWINGS_FOR_TABLE else ([], [])
     data = {"lines": _lines(page, table_boxes), "rows": rows, "height": round(page.rect.height, 1)}
     return ExtractedPage(number, data, None)
+
+
+def _image_share(page: pymupdf.Page) -> float:
+    """How much of the page images cover. A logo is small, and a chart or photo isn't."""
+    covered = sum(
+        abs(pymupdf.Rect(image["bbox"]) & page.rect) for image in page.get_image_info()
+    )
+    return covered / max(abs(page.rect), 1)
 
 
 def _lines(page: pymupdf.Page, table_boxes: list[pymupdf.Rect]) -> list[dict[str, Any]]:

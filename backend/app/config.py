@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     max_concurrent_runs: int = 3
     max_llm_calls: int = 60
-    run_timeout_s: int = 180
+    run_timeout_s: int = 420
     max_pdf_mb: int = 50
     max_pages: int = 200
     profile_ttl_s: int = 3600
