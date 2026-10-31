@@ -1,5 +1,7 @@
 // PDF.js loads its worker, fonts, character maps and image decoders by URL, so
-// they are served from public/ at the exact version that is installed.
+// they are served from public/ at the exact version that is installed. Run this
+// after upgrading pdfjs-dist and commit the result. A build-time copy didn't reach
+// the Vercel deployment. lib/pdfjsAssets.test.ts fails if the two drift apart.
 import { cpSync, rmSync } from "node:fs";
 
 const from = "node_modules/pdfjs-dist";

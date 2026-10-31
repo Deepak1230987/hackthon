@@ -35,6 +35,8 @@ Run on 30 October 2026 using a server-side web fetcher, not a browser and probab
 
 **Phase 2 checks on the live system, 31 October 2026:** 676 of 680 native clause boxes contain their text; 3 of the other 4 are table rows whose value sits in a merged cell the row passes through, which is correct. The browser tier reached `tribal.nic.in` from the VM after plain HTTP failed on TLS, and found its PDF links. `pmkisan.gov.in` publishes its Hindi guidelines link encoded twice, which returns 400 until repaired. These comparisons were made by Claude reading page images, not by a human Hindi reader, so the phase 2 gate still needs one.
 
+**Live test after the phase 2 merge, 1 November 2026:** on the Vercel site, all three inputs, the chooser, refusals, the viewer, refresh and a phone layout worked, once the browser was given the PDF.js files that were missing from the deployment. A 4-page Hindi PDF fetched from `pmkisan.gov.in` through the repaired link resumed and completed after the API was restarted during OCR, and page 1 matched the PDF when read by Claude.
+
 **Connection limit:** Supabase's session pooler allows 15 clients, and they filled up after hard-kill tests, stopping the backend from starting. Use the transaction pooler on port 6543.
 
 **Sarvam cost estimate:** a 1,500-character explainer costs about ₹3 to translate and ₹1.50 to speak with v4-flash, or ₹4.50 per language, excluding GST. The free ₹100 covers roughly 20 runs before testing and retries, hence the ₹500 top-up.
