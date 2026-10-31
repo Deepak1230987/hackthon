@@ -49,6 +49,11 @@ test("OCR keeps its place among other events", () => {
   );
 });
 
+test("unfinished embedding is a warning, not a failure", () => {
+  const [line] = traceLines([event(1, "embeddings_done", { embedded: false })]);
+  assert.equal(line.tone, "warn");
+});
+
 test("segment_done reports pages it couldn't read", () => {
   const lines = traceLines([
     event(1, "segment_done", { clauses: 9, failed_pages: [3, 5] }),

@@ -531,7 +531,8 @@ The frontend builds the trace only from these events, so a refresh, an SSE repla
 | `node_finished` | `{node, duration_ms, implemented}` | A node ended normally. `implemented: false` marks a pass-through, shown as "Not built yet" |
 | `fetch_attempt` | `{method}` | `http`, `browser` or `upload` |
 | `page_ocr` | `{page, reason}`, or `{page, failed: true, reason}` | A page started or failed OCR |
-| `segment_done` | `{clauses, failed_pages, embedded}` | Clause count, and pages that couldn't be read |
+| `segment_done` | `{clauses, failed_pages}` | Clauses can be read now. Clause count, and pages that couldn't be read |
+| `embeddings_done` | `{embedded}` | Embedding finished, or `false` if it failed or took over a minute. The next run retries it |
 | `triage_result` | `{is_policy}` | |
 | `claim_extracted` | `{claim_id, field}` | |
 | `claim_verified` | `{claim_id}` | |

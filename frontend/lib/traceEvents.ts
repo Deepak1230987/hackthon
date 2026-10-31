@@ -26,6 +26,10 @@ function describe(event: RunEvent): Omit<TraceLine, "key"> {
       };
     case "segment_done":
       return { text: `Found ${p.clauses ?? "?"} clauses`, tone: "plain" };
+    case "embeddings_done":
+      return p.embedded
+        ? { text: "Prepared the clauses for search", tone: "plain" }
+        : { text: "Search isn't ready yet. The next run retries it", tone: "warn" };
     case "triage_result":
       return {
         text: p.is_policy ? "This is a policy document" : "Not a policy document",

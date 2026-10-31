@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -12,6 +13,8 @@ from app.graph.state import RunState
 from app.providers.gateway import EMBED_BATCH, ProviderUnavailable
 
 log = logging.getLogger(__name__)
+
+EMBED_TIMEOUT_S = 60
 
 
 async def segment(state: RunState, deps: Deps) -> dict:
@@ -82,12 +85,12 @@ async def segment(state: RunState, deps: Deps) -> dict:
             "NO_READABLE_TEXT", "We couldn't find any text in this document.", action="upload"
         )
 
-    embedded = await _embed_missing(document_id, deps)
+    # Before embedding, because the clauses can be read now and rate limits can make embedding slow.
     await deps.events.emit(
-        state["run_id"],
-        "segment_done",
-        {"clauses": total, "failed_pages": failed_pages, "embedded": embedded},
+        state["run_id"], "segment_done", {"clauses": total, "failed_pages": failed_pages}
     )
+    embedded = await _embed_missing(document_id, deps)
+    await deps.events.emit(state["run_id"], "embeddings_done", {"embedded": embedded})
     return {"partial": True} if failed_pages else {}
 
 
@@ -123,16 +126,20 @@ async def _embed_missing(document_id: uuid.UUID, deps: Deps) -> bool:
             )
         ).all()
     try:
-        for start in range(0, len(rows), EMBED_BATCH):
-            batch = rows[start : start + EMBED_BATCH]
-            vectors = await deps.gateway.embed([row.text for row in batch])
-            async with deps.sessions() as session:
-                await session.execute(
-                    update(Clause),
-                    [{"id": row.id, "embedding": v} for row, v in zip(batch, vectors, strict=True)],
-                )
-                await session.commit()
-    except ProviderUnavailable as exc:
+        async with asyncio.timeout(EMBED_TIMEOUT_S):
+            for start in range(0, len(rows), EMBED_BATCH):
+                batch = rows[start : start + EMBED_BATCH]
+                vectors = await deps.gateway.embed([row.text for row in batch])
+                async with deps.sessions() as session:
+                    await session.execute(
+                        update(Clause),
+                        [
+                            {"id": row.id, "embedding": v}
+                            for row, v in zip(batch, vectors, strict=True)
+                        ],
+                    )
+                    await session.commit()
+    except (ProviderUnavailable, TimeoutError) as exc:
         log.warning("Embedding failed for document %s: %s", document_id, exc)
         return False
     return True

@@ -38,6 +38,7 @@ export const RUN_EVENT_TYPES = [
   "fetch_attempt",
   "page_ocr",
   "segment_done",
+  "embeddings_done",
   "triage_result",
   "claim_extracted",
   "claim_verified",

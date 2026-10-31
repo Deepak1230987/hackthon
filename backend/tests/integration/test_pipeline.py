@@ -6,6 +6,7 @@ from sqlalchemy import func, select, text
 from app.acquisition import fetchers
 from app.acquisition.fetchers import Fetched, FetchFailed
 from app.db.models import Clause, Document
+from app.graph.nodes import segment
 from tests.conftest import make_pdf, make_scanned_pdf
 from tests.integration.test_runs import upload
 
@@ -138,16 +139,28 @@ async def test_all_pages_failing_is_a_clear_error(client, gateway):
     assert view["error"]["code"] == "PROVIDERS_UNAVAILABLE"
 
 
+async def test_slow_embedding_neither_hides_clauses_nor_holds_the_run(
+    client, gateway, monkeypatch
+):
+    monkeypatch.setattr(segment, "EMBED_TIMEOUT_S", 0.1)
+    gateway.embed_hangs = True
+    view = await wait_for_end(client, await upload(client, make_scanned_pdf(seed=8)))
+    assert view["status"] == "completed"
+    types = [event["type"] for event in view["events"]]
+    assert types.index("segment_done") < types.index("embeddings_done")
+    assert events_of(view, "embeddings_done")[0]["embedded"] is False
+
+
 async def test_embedding_failure_is_not_fatal_and_is_retried(client, gateway, app):
     gateway.embed_fails = True
     content = make_pdf("Embedding failure should leave the clauses usable here.")
     first = await wait_for_end(client, await upload(client, content))
     assert first["status"] == "completed"
-    assert events_of(first, "segment_done")[0]["embedded"] is False
+    assert events_of(first, "embeddings_done")[0]["embedded"] is False
 
     gateway.embed_fails = False
     second = await wait_for_end(client, await upload(client, content))
-    assert events_of(second, "segment_done")[0]["embedded"] is True
+    assert events_of(second, "embeddings_done")[0]["embedded"] is True
 
 
 async def test_database_outage_returns_the_error_format(app, client, monkeypatch):
