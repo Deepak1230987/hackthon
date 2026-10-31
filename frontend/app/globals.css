@@ -13,6 +13,9 @@
   --color-warning: #805300;
   --color-danger: #a12a1d;
   --color-danger-soft: #fbeeec;
+  --color-highlight: #ffd84d;
+  --color-highlight-soft: #fff6d1;
+  --color-highlight-strong: #8a5a00;
   --font-sans: var(--font-noto-sans), var(--font-noto-devanagari), sans-serif;
 }
 

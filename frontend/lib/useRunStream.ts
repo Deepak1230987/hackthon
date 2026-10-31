@@ -105,12 +105,19 @@ export function useRunStream(runId: string): {
             event: { seq, type: type as RunEventType, payload },
           });
           setLoaded(true);
-          if (
-            type === "run_status" &&
-            isTerminal(payload.status as RunStatus)
-          ) {
+          const ended =
+            type === "run_status" && isTerminal(payload.status as RunStatus);
+          if (ended) {
             stream.close();
             setConnection("closed");
+          }
+          // Events don't carry the document, so read it once it has changed.
+          if (
+            ended ||
+            type === "segment_done" ||
+            (type === "node_finished" && payload.node === "acquire")
+          ) {
+            void loadSnapshot();
           }
         });
       }

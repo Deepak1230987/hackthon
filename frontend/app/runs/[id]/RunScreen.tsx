@@ -3,7 +3,9 @@
 import Link from "next/link";
 
 import { AgentTrace } from "@/components/AgentTrace";
-import type { ConnectionState, RunStatus } from "@/lib/types";
+import { DocumentWorkspace } from "@/components/DocumentWorkspace";
+import { SourceOptions } from "@/components/SourceOptions";
+import type { ConnectionState, RunStatus, SourceOption } from "@/lib/types";
 import { useRunStream } from "@/lib/useRunStream";
 
 const STATUS_TEXT: Record<RunStatus, string> = {
@@ -20,12 +22,15 @@ const CONNECTION_TEXT: Partial<Record<ConnectionState, string>> = {
   polling: "Live updates are unavailable. Checking every few seconds.",
 };
 
+const DEFAULT_LANGUAGE = "hi";
+
 export function RunScreen({ id }: { id: string }) {
   const { view, connection, loaded } = useRunStream(id);
   const notice = CONNECTION_TEXT[connection];
+  const options = (view.error?.details?.options ?? []) as SourceOption[];
 
-  return (
-    <div className="flex flex-col gap-6">
+  const summary = (
+    <>
       <div>
         <h1 className="text-2xl font-semibold">
           {loaded ? STATUS_TEXT[view.status] : "Loading your run…"}
@@ -43,6 +48,12 @@ export function RunScreen({ id }: { id: string }) {
           className="rounded-md border border-danger/30 bg-danger-soft px-4 py-3"
         >
           <p className="text-danger">{view.error.message}</p>
+          {view.error.code === "MULTIPLE_PDFS" && options.length > 0 && (
+            <SourceOptions
+              options={options}
+              language={view.language ?? DEFAULT_LANGUAGE}
+            />
+          )}
           <Link
             href="/"
             className="mt-2 inline-block font-semibold text-danger underline"
@@ -55,6 +66,21 @@ export function RunScreen({ id }: { id: string }) {
       {loaded && !(view.error && view.steps.length === 0) && (
         <AgentTrace steps={view.steps} />
       )}
-    </div>
+    </>
+  );
+
+  if (!view.document) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col gap-6">{summary}</div>
+    );
+  }
+  return (
+    <DocumentWorkspace
+      key={view.document.id}
+      document={view.document}
+      clausesReady={view.clausesReady}
+    >
+      {summary}
+    </DocumentWorkspace>
   );
 }

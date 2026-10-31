@@ -132,6 +132,21 @@ test("a stale snapshot does not move the status backwards", () => {
   assert.equal(next.view.status, "completed");
 });
 
+test("clauses count as ready once segmentation is done", () => {
+  const before = replay([event(1, "node_started", { node: "segment" })]);
+  assert.equal(before.view.clausesReady, false);
+  const after = replay([event(2, "segment_done", { clauses: 3 })], before);
+  assert.equal(after.view.clausesReady, true);
+});
+
+test("a refresh after segmentation still knows clauses are ready", () => {
+  const { view } = runReducer(
+    initialRunState,
+    snapshot("completed", [event(1, "segment_done", { clauses: 3 })]),
+  );
+  assert.equal(view.clausesReady, true);
+});
+
 test("a terminal snapshot settles steps when polling missed the event", () => {
   const next = runReducer(
     initialRunState,
