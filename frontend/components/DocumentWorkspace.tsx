@@ -63,7 +63,12 @@ export function DocumentWorkspace({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState<Clause | undefined>();
+  // An id, because a claim can be clicked before the clause text has loaded.
+  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const selected = useMemo(
+    () => data?.clauses.find((c) => c.id === selectedId),
+    [data, selectedId],
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   // On a phone the PDF isn't downloaded until someone asks to see it.
   const [sheetUsed, setSheetUsed] = useState(false);
@@ -102,7 +107,7 @@ export function DocumentWorkspace({
 
   const changePage = useCallback((next: number) => {
     setPage(next);
-    setSelected(undefined);
+    setSelectedId(undefined);
   }, []);
 
   const openSheet = () => {
@@ -117,13 +122,13 @@ export function DocumentWorkspace({
   }, []);
 
   const select = (clause: Clause) => {
-    setSelected(clause);
+    setSelectedId(clause.id);
     setPage(clause.page);
     if (!isDesktop) openSheet();
   };
 
   const showSource = (source: ClauseRef) => {
-    setSelected(data?.clauses.find((c) => c.id === source.id));
+    setSelectedId(source.id);
     setPage(source.page);
     if (!isDesktop) openSheet();
   };
@@ -154,7 +159,7 @@ export function DocumentWorkspace({
           status={status}
           claims={claims}
           notStated={notStated}
-          selectedClauseId={selected?.id}
+          selectedClauseId={selectedId}
           onShowSource={showSource}
         />
         {trace}
@@ -222,7 +227,7 @@ export function DocumentWorkspace({
               </div>
               <ClauseList
                 clauses={onPage}
-                selectedId={selected?.id}
+                selectedId={selectedId}
                 pageFailed={data.failed_pages.includes(page)}
                 onSelect={select}
               />
