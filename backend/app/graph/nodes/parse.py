@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from app.db.models import Document, DocumentPage
@@ -60,21 +60,28 @@ async def parse(state: RunState, deps: Deps) -> None:
                 log.warning("OCR failed on page %s of run %s: %s", page.page, run_id, exc)
                 await _save_page(deps, document_id, page.page, "ocr", "failed", {"items": []},
                                  page.ocr_reason)
-                await deps.events.emit(run_id, "page_ocr", {"page": page.page, "failed": True})
+                await deps.events.emit(
+                    run_id, "page_ocr", {"page": page.page, "failed": True, "reason": str(exc)}
+                )
                 return
             await _save_page(deps, document_id, page.page, "ocr", "done", {"items": items},
                              page.ocr_reason)
 
     await asyncio.gather(*(ocr_page(page) for page in needing_ocr))
 
-    if needing_ocr:
-        async with deps.sessions() as session:
-            await session.execute(
-                update(Document)
-                .where(Document.id == document_id)
-                .values(is_scanned=len(needing_ocr) * 2 > document.page_count)
-            )
-            await session.commit()
+    async with deps.sessions() as session:
+        # Count every OCR page, because a retry only reads the ones that failed before.
+        ocr_pages = await session.scalar(
+            select(func.count())
+            .select_from(DocumentPage)
+            .where(DocumentPage.document_id == document_id, DocumentPage.extraction == "ocr")
+        )
+        await session.execute(
+            update(Document)
+            .where(Document.id == document_id)
+            .values(is_scanned=ocr_pages * 2 > document.page_count)
+        )
+        await session.commit()
 
 
 async def _save_page(

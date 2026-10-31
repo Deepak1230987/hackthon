@@ -17,6 +17,9 @@ from app.acquisition.ssrf import GuardedBackend, UrlRejected, check_url, is_publ
         "https://example.gov.in:8443/a.pdf",
         "http://example.gov.in:22/",
         "https://user:pass@example.gov.in/a.pdf",
+        "https://" + "a" * 70 + ".gov.in/a.pdf",  # DNS can't encode this label
+        "https://.gov.in/a.pdf",
+        "https://exa\x00mple.gov.in/a.pdf",
     ],
 )
 def test_rejects_bad_urls(url):
@@ -153,6 +156,21 @@ async def test_non_html_non_pdf_is_rejected():
     with pytest.raises(FetchFailed) as caught:
         await http_fetch("https://8.8.8.8/a.pdf", 1024, _transport(handler))
     assert caught.value.reason == "not_a_pdf"
+
+
+async def test_redirect_with_no_location_is_a_clean_failure():
+    with pytest.raises(FetchFailed) as caught:
+        await http_fetch("https://8.8.8.8/a.pdf", 1024, _transport(lambda r: httpx.Response(302)))
+    assert caught.value.reason == "http_302"
+
+
+async def test_redirect_to_an_unusable_url_is_a_clean_failure():
+    def handler(request):
+        return httpx.Response(302, headers={"location": "http://[bad"})
+
+    with pytest.raises(FetchFailed) as caught:
+        await http_fetch("https://8.8.8.8/a.pdf", 1024, _transport(handler))
+    assert caught.value.reason == "bad_redirect"
 
 
 def test_pdf_links_are_deduplicated():

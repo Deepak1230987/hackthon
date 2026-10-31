@@ -206,6 +206,8 @@ async def acquire(req):
 |---|---|
 | Schemes and ports | `http` or `https`, ports 80 and 443 only |
 | SSRF | Resolve DNS and reject private, loopback, link-local, multicast and metadata addresses, including every redirect target. Max 5 redirects |
+| Browser tier | All Chromium traffic goes through `GuardedProxy`, which applies these rules to every connection. Playwright's route handler only sees the first URL of a redirect chain, so it can't enforce them alone. The proxy also caps total bytes |
+| Refused fetches | `blocked` and `too_large` end the run with `URL_BLOCKED` or `FILE_TOO_LARGE`. The browser tier isn't tried, because it would fetch the same address or file |
 | TLS | Verify using certifi plus any missing government intermediates we add. Never disable verification |
 | Limits | 45 s, 50 MB while streaming |
 | File validation | `%PDF-` header, opens in PyMuPDF, not encrypted, at least 1 page |
@@ -234,12 +236,14 @@ def needs_ocr(page) -> bool:
 
 Render at 200 DPI and send to `OCR_MODEL`, then `OCR_FALLBACK_MODEL`, with a prompt requiring a JSON list of `{kind, text}` in reading order. Language comes from our own detection. Text must be copied exactly and illegible parts marked `[illegible]`. Run up to 5 pages concurrently, and record failed pages so they appear in the UI. OCR clauses have `bbox = NULL`.
 
+Gemini refuses pages that quote known text such as a statute, returning `finishReason=RECITATION` on every model. Those pages go to `LLM_FALLBACK_MODEL` on OpenAI if it is configured. Otherwise they are recorded as failed with reason `recitation`, and the run ends as `partial`. We do not try to get around the refusal.
+
 Each page is saved to `document_pages` as soon as it's read, so a retry or a later run of the same file only reads the pages still missing. A run that times out can therefore be started again without losing progress. Clauses recovered later are added with new ordinals, so citations from earlier runs stay valid.
 
 ### 6.3 Segmentation
 
 1. Take PyMuPDF text blocks in reading order, and drop repeated headers and footers.
-2. Convert each `find_tables()` row to `Header: value; Header: value`, as `kind=table_row`.
+2. Convert each `find_tables()` row to `Header: value; Header: value`, as `kind=table_row`, only if every column boundary has a drawn vertical rule. Without rules PyMuPDF guesses columns from the text, which put a Day Scholars amount under the wrong header on a real scheme table, so those pages stay plain text with no added labels.
 3. Merge broken lines, and split on numbered items (`1.`, `(a)`, `3.2`) and blank lines.
 4. Split clauses over 1,200 characters at sentence boundaries, using `।` as well as `.`.
 5. Detect language by Unicode script, with a library check for English and Latin text.
@@ -523,7 +527,7 @@ The frontend builds the trace only from these events, so a refresh, an SSE repla
 | `node_started` | `{node}` | A node began. Emit it again on retry or resume |
 | `node_finished` | `{node, duration_ms, implemented}` | A node ended normally. `implemented: false` marks a pass-through, shown as "Not built yet" |
 | `fetch_attempt` | `{method}` | `http`, `browser` or `upload` |
-| `page_ocr` | `{page, reason}`, or `{page, failed: true}` | A page started or failed OCR |
+| `page_ocr` | `{page, reason}`, or `{page, failed: true, reason}` | A page started or failed OCR |
 | `segment_done` | `{clauses, failed_pages, embedded}` | Clause count, and pages that couldn't be read |
 | `triage_result` | `{is_policy}` | |
 | `claim_extracted` | `{claim_id, field}` | |

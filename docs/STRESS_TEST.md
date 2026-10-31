@@ -27,6 +27,10 @@ Run on 30 October 2026 using a server-side web fetcher, not a browser and probab
 
 **Hindi text layer finding:** the PMAY-G Hindi booklet has a corrupted text layer on a Unicode font, such as `ग्ामीीण` for `ग्रामीण`, with doubled vowel signs on 36 of 40 pages. Replacement-character and legacy-font checks don't catch this, so task 2.4 must. Gemini OCR read a sample page correctly.
 
+**Gemini quota, 31 October 2026:** the API key is on the Free Tier. `gemini-3.6-flash` allows 20 requests a day and `gemini-embedding-2` and `gemini-3.5-flash-lite` hit per-minute limits, so a 40-page Hindi PDF needed three runs to finish its OCR. Task 0.3 requires billing to be on before judging.
+
+**OCR on a real scan, 31 October 2026:** on a 6-page scanned UP Police circular, all three Gemini models refused page 3 with `RECITATION`, because it quotes the BNSS word for word. Government documents quote laws often, so expect this in judging; the OpenAI fallback needs a key to cover it. `gemini-3.5-flash-lite` also swapped real words, such as `अभियुक्तों` for `अभियोगों`, while numbers stayed correct, so the default `OCR_MODEL` moved to `gemini-3.5-flash`, which read all 16 test words correctly. It allows only 20 requests a day on the Free Tier, so it needs billing. Hindi OCR output still needs checking by a reader.
+
 **Connection limit:** Supabase's session pooler allows 15 clients, and they filled up after hard-kill tests, stopping the backend from starting. Use the transaction pooler on port 6543.
 
 **Sarvam cost estimate:** a 1,500-character explainer costs about ₹3 to translate and ₹1.50 to speak with v4-flash, or ₹4.50 per language, excluding GST. The free ₹100 covers roughly 20 runs before testing and retries, hence the ₹500 top-up.

@@ -28,6 +28,14 @@ curl -F file=@policy.pdf -F language=hi http://localhost:8000/v1/documents
 curl -N http://localhost:8000/v1/runs/<run_id>/events
 ```
 
+## Add a document to the library
+
+With the API running, this sends a real document through the pipeline and lists it if the run completes. Read the document to get its title, and use its official URL.
+
+```
+uv run python -m app.add_to_library <pdf-url> --title "Scheme guidelines"
+```
+
 ## Test
 
 Unit tests need nothing else. Integration tests need a Postgres with pgvector, and they **wipe the database they connect to**, so never point them at Supabase.

@@ -244,6 +244,39 @@ def test_table_rows_become_whole_clauses():
     assert row.bbox is not None
 
 
+def test_columns_without_ruled_lines_do_not_get_guessed_headers():
+    document = pymupdf.open()
+    page = document.new_page()
+    # Horizontal rules only, like a real scheme table whose amounts were mislabelled.
+    for y in (100, 130, 160, 190):
+        page.draw_line((72, y), (450, y))
+    grid = [["Groups", "Hostellers", "Day Scholars"], ["Group 1", "13500", "7000"]]
+    for r, row in enumerate(grid):
+        for x, value in zip((77, 250, 370), row):
+            page.insert_text((x, 120 + r * 30), value)
+    extracted = extract_pages(document.tobytes(), [1])[0]
+    clauses = segment_page(1, extracted.data, set(), "native")
+    assert all(c.kind != "table_row" for c in clauses)
+    assert not any(":" in c.text for c in clauses)
+    assert "7000" in " ".join(c.text for c in clauses)
+
+
+def test_list_label_alone_on_its_line_starts_the_next_clause():
+    lines = [
+        _line("The value includes the following:-", 100, block=0),
+        _line("i.", 120, block=1),
+        _line("Maintenance allowance,", 120, block=1),
+        _line("ii.", 140, block=2),
+        _line("Study tour charges,", 140, block=2),
+    ]
+    texts = [c.text for c in segment_page(1, _native(*lines), set(), "native")]
+    assert texts == [
+        "The value includes the following:-",
+        "i. Maintenance allowance,",
+        "ii. Study tour charges,",
+    ]
+
+
 def test_scanned_page_is_routed_to_ocr():
     document = pymupdf.open()
     pixmap = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), False)
