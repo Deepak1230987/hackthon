@@ -64,7 +64,9 @@ async def speech_to_answer(run_id: uuid.UUID, request: Request) -> dict:
         raise ApiError("INVALID_ANSWER", "This document doesn't ask about that.")
 
     try:
-        transcript, language_probability = await deps.gateway.sarvam.stt(content, content_type)
+        transcript, language_probability = await deps.gateway.sarvam.stt(
+            content, content_type, run.language
+        )
     except ProviderUnavailable as exc:
         raise ApiError(
             "SPEECH_UNAVAILABLE", "We can't hear answers right now. Please type it.", status=503, action="type"

@@ -18,6 +18,8 @@ import { PdfViewer } from "@/components/PdfViewer";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { RightsCard } from "@/components/RightsCard";
 import { ApiRequestError, fetchClauses } from "@/lib/api";
+import { languageOf } from "@/lib/languages";
+import { isOldDocument, OLD_DOCUMENT_YEARS } from "@/lib/provenance";
 import { isTerminal } from "@/lib/runReducer";
 import type {
   Claim,
@@ -171,8 +173,16 @@ export function DocumentWorkspace({
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col gap-6">
         {children}
+        {isOldDocument(doc.issue_date) && (
+          <p className="rounded-md border border-warning/40 bg-highlight-soft px-3 py-2 text-sm font-medium text-warning">
+            This document looks more than {OLD_DOCUMENT_YEARS} years old. The
+            rules may have changed, so check the latest version with the issuing
+            office.
+          </p>
+        )}
         <EligibilityPanel
           runId={runId}
+          language={language ?? "hi"}
           question={question}
           verdict={verdict}
           claims={claims}
@@ -186,6 +196,15 @@ export function DocumentWorkspace({
           selectedClauseId={selectedId}
           onShowSource={showSource}
         />
+        {(verdict || sentences.length > 0) && (
+          <p className="text-sm text-muted">
+            <span lang={language} className="block font-medium text-ink">
+              {languageOf(language).notLegalAdvice}
+            </span>
+            This is not legal advice. Confirm with the issuing office before you
+            rely on it.
+          </p>
+        )}
         <RightsCard
           status={status}
           claims={claims}

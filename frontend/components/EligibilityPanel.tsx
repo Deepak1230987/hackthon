@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ApiRequestError, skipQuestion, speechToAnswer, submitAnswer } from "@/lib/api";
+import { languageOf } from "@/lib/languages";
 import { answerLabel, optionLabel, questionText, typedValue } from "@/lib/questions";
 import type { Claim, ClauseRef, Question, Verdict } from "@/lib/types";
 
@@ -12,23 +13,27 @@ const BUTTON =
 const PRIMARY =
   "min-h-11 rounded-md bg-accent px-5 font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
-const OUTCOMES: Record<string, { hi: string; en: string; tone: string }> = {
+const OUTCOMES: Record<string, { hi: string; mr: string; en: string; tone: string }> = {
   MEETS_STATED_CRITERIA: {
+    mr: "या दस्तऐवजात सांगितलेल्या अटी तुम्ही पूर्ण करत असल्याचे दिसते.",
     hi: "आप इस दस्तावेज़ की बताई गई शर्तें पूरी करते दिखते हैं।",
     en: "You appear to meet the criteria this document states.",
     tone: "border-success/40",
   },
   DOES_NOT_MEET: {
+    mr: "या दस्तऐवजातील किमान एक अट पूर्ण होत असल्याचे दिसत नाही.",
     hi: "इस दस्तावेज़ की कम से कम एक शर्त पूरी होती नहीं दिखती।",
     en: "You do not appear to meet at least one criterion in this document.",
     tone: "border-danger/40",
   },
   NEEDS_INFO: {
+    mr: "तुम्ही पात्र आहात की नाही हे सांगण्यासाठी आम्हाला आणखी माहिती हवी आहे.",
     hi: "यह बताने के लिए कि आप पात्र हैं या नहीं, हमें और जानकारी चाहिए।",
     en: "We need more details to tell whether you qualify.",
     tone: "border-warning/40",
   },
   CANNOT_DETERMINE: {
+    mr: "तुम्ही पात्र आहात की नाही हे आम्ही या दस्तऐवजावरून सांगू शकत नाही.",
     hi: "हम इस दस्तावेज़ से यह नहीं बता सकते कि आप पात्र हैं या नहीं।",
     en: "We cannot tell from this document whether you qualify.",
     tone: "border-warning/40",
@@ -44,7 +49,16 @@ function message(e: unknown): string {
   return e instanceof ApiRequestError ? e.message : "Something went wrong. Please try again.";
 }
 
-function QuestionForm({ runId, question }: { runId: string; question: Question }) {
+function QuestionForm({
+  runId,
+  question,
+  language,
+}: {
+  runId: string;
+  question: Question;
+  language: string;
+}) {
+  const words = languageOf(language);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -128,7 +142,9 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
     setError(null);
     setHeard(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       const recorder = new MediaRecorder(stream, { mimeType: micType });
       const chunks: Blob[] = [];
       recorder.ondataavailable = (e) => chunks.push(e.data);
@@ -161,18 +177,19 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
 
   return (
     <div className="mt-2">
-      <p ref={questionRef} tabIndex={-1} lang="hi" className="text-lg font-medium outline-none">
-        {questionText(question)}
+      <p ref={questionRef} tabIndex={-1} lang={language} className="text-lg font-medium outline-none">
+        {questionText(question, language)}
       </p>
       <p className="text-sm text-muted">{question.question_en}</p>
 
       {heard ? (
         <div className="mt-3 rounded-md border border-highlight-strong bg-highlight-soft p-3">
           <p className="text-sm text-muted">
-            We heard: <span lang="hi">{heard.transcript}</span>
+            We heard: <span lang={language}>{heard.transcript}</span>
           </p>
           <p className="mt-1 font-semibold">
-            Is this right? <span lang="hi">{answerLabel(question, heard.value)}</span>
+            Is this right?{" "}
+            <span lang={language}>{answerLabel(question, heard.value, language)}</span>
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button type="button" disabled={saving} onClick={() => void send(heard.value)} className={PRIMARY}>
@@ -188,10 +205,10 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
           {question.type === "bool" && (
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={() => void send(true)} className={BUTTON}>
-                <span lang="hi">हाँ</span> / Yes
+                <span lang={language}>{words.yes}</span> / Yes
               </button>
               <button type="button" disabled={busy} onClick={() => void send(false)} className={BUTTON}>
-                <span lang="hi">नहीं</span> / No
+                <span lang={language}>{words.no}</span> / No
               </button>
             </div>
           )}
@@ -211,7 +228,7 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
                   </option>
                   {question.options?.map((option) => (
                     <option key={option} value={option}>
-                      {optionLabel(option)}
+                      {optionLabel(option, language)}
                     </option>
                   ))}
                 </select>
@@ -220,12 +237,12 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
                   <button
                     key={option}
                     type="button"
-                    lang="hi"
+                    lang={language}
                     disabled={busy}
                     onClick={() => void send(option)}
                     className={BUTTON}
                   >
-                    {optionLabel(option)}
+                    {optionLabel(option, language)}
                   </button>
                 ))
               )}
@@ -261,9 +278,14 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
               </button>
             )}
             {recording && (
-              <button type="button" onClick={() => recorderRef.current?.stop()} className={PRIMARY}>
-                Stop recording
-              </button>
+              <>
+                <span role="status" className="text-sm font-medium text-accent">
+                  Speak now, then tap stop.
+                </span>
+                <button type="button" onClick={() => recorderRef.current?.stop()} className={PRIMARY}>
+                  Stop recording
+                </button>
+              </>
             )}
             <button type="button" disabled={busy} onClick={() => void skip()} className={BUTTON}>
               I don&apos;t know
@@ -281,6 +303,8 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
   );
 }
 
+const OPEN_LINKS = 3;
+
 function ClaimLinks({
   title,
   ids,
@@ -296,22 +320,35 @@ function ClaimLinks({
     .map((id) => claims.find((c) => c.id === id))
     .filter((c): c is Claim => Boolean(c?.clauses.length));
   if (found.length === 0) return null;
+  const list = (items: Claim[]) => (
+    <ul className="mt-1 flex flex-col gap-1 text-sm">
+      {items.map((claim) => (
+        <li key={claim.id}>
+          <button
+            type="button"
+            onClick={() => onShowSource(claim.clauses[0])}
+            className="min-h-11 text-left underline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            {claim.text}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
   return (
     <div className="mt-2">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <ul className="mt-1 flex flex-col gap-1 text-sm">
-        {found.map((claim) => (
-          <li key={claim.id}>
-            <button
-              type="button"
-              onClick={() => onShowSource(claim.clauses[0])}
-              className="min-h-11 text-left underline focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              {claim.text}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <h3 className="text-sm font-semibold">
+        {title} <span className="font-normal text-muted">· {found.length}</span>
+      </h3>
+      {list(found.slice(0, OPEN_LINKS))}
+      {found.length > OPEN_LINKS && (
+        <details className="mt-1 text-sm">
+          <summary className="min-h-11 cursor-pointer py-2 font-medium text-accent">
+            Show {found.length - OPEN_LINKS} more
+          </summary>
+          {list(found.slice(OPEN_LINKS))}
+        </details>
+      )}
     </div>
   );
 }
@@ -321,9 +358,11 @@ export function EligibilityPanel({
   question,
   verdict,
   claims,
+  language,
   onShowSource,
 }: {
   runId: string;
+  language: string;
   question?: Question;
   verdict?: Verdict;
   claims: Claim[];
@@ -340,7 +379,7 @@ export function EligibilityPanel({
         <h2 id="eligibility-heading" className="text-sm font-semibold text-accent">
           Check if this applies to you
         </h2>
-        <QuestionForm key={question.name} runId={runId} question={question} />
+        <QuestionForm key={question.name} runId={runId} question={question} language={language} />
         <p className="mt-3 text-xs text-muted">
           Your answers are used only for this check. They aren&apos;t saved, and
           a voice recording is never kept.
@@ -355,8 +394,8 @@ export function EligibilityPanel({
       aria-labelledby="eligibility-heading"
       className={`rounded-lg border-2 bg-surface p-4 ${outcome.tone}`}
     >
-      <h2 id="eligibility-heading" lang="hi" className="text-lg font-semibold">
-        {outcome.hi}
+      <h2 id="eligibility-heading" lang={language} className="text-lg font-semibold">
+        {language === "mr" ? outcome.mr : outcome.hi}
       </h2>
       <p className="text-sm text-muted">{outcome.en}</p>
       <ClaimLinks title="Not met" ids={verdict!.failed} claims={claims} onShowSource={onShowSource} />

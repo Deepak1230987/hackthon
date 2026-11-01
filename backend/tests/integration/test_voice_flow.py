@@ -273,3 +273,12 @@ async def test_verdict_has_fixed_hindi_that_costs_no_call(app, client, gateway):
     assert sentence.translated_text == fixed[text]
     assert sentence.translator == "fixed"
     assert gateway.sarvam.translate_calls == 0
+
+
+async def test_marathi_run_gets_fixed_verdict_text_for_every_outcome():
+    from app.eligibility.interpreter import CANNOT_DETERMINE, DOES_NOT_MEET, MEETS, NEEDS_INFO
+    from app.graph.nodes.script import VERDICT_TEXT
+    from app.graph.nodes.translate import FIXED_TRANSLATIONS
+
+    for outcome in (MEETS, DOES_NOT_MEET, NEEDS_INFO, CANNOT_DETERMINE):
+        assert VERDICT_TEXT[outcome][0] in FIXED_TRANSLATIONS["mr"]

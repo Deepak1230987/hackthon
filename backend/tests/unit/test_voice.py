@@ -30,6 +30,11 @@ from app.voice.guard import numbers_match
         ("It is available for only one year.", "यह सिर्फ 1 साल के लिए मिलती है।"),
         ("It is available for 1 year.", "यह एक साल के लिए मिलती है।"),
         ("Verification is due by 31stAugust.", "सत्यापन 31 अगस्त तक होना चाहिए।"),
+        # Marathi, whose month names differ from Hindi's.
+        ("The cut-off date is 01.04.2019.", "अंतिम मुदत 1 एप्रिल 2019 आहे."),
+        ("The cut-off date is 01.02.2019.", "अंतिम मुदत 1 फेब्रुवारी 2019 आहे."),
+        ("The cut-off date is 01.01.2019.", "अंतिम मुदत 1 जानेवारी 2019 आहे."),
+        ("Income must be below Rs. 2.5 lakh.", "उत्पन्न 2.5 लाख रुपयांपेक्षा कमी असावे."),
     ],
 )
 def test_same_numbers_pass(source, translated):
@@ -61,6 +66,8 @@ def test_changed_missing_or_added_numbers_fail(source, translated):
         ("is_student", "जी हां।", True),
         ("is_student", "नहीं", False),
         ("is_student", "Yes.", True),
+        ("is_student", "होय", True),
+        ("is_student", "नाही.", False),
         ("age", "मेरी उम्र 25 साल है", 25),
         ("age", "२५", 25),
         ("annual_income_inr", "2.5 लाख रुपये", 250000),
@@ -166,12 +173,12 @@ async def test_tts_returns_decoded_mp3():
     assert sent["speaker"] == "ritu_hi_customer"
 
 
-async def test_stt_asks_sarvam_to_detect_the_language():
+async def test_stt_tells_sarvam_the_language_of_the_run():
     def handler(request):
-        assert b'name="language_code"' in request.content and b"unknown" in request.content
+        assert b'name="language_code"' in request.content and b"mr-IN" in request.content
         return httpx.Response(200, json={"transcript": " हाँ ", "language_probability": 0.9})
 
-    assert await sarvam(handler).stt(b"audio", "audio/webm") == ("हाँ", 0.9)
+    assert await sarvam(handler).stt(b"audio", "audio/webm", "mr") == ("हाँ", 0.9)
 
 
 async def test_out_of_credit_stops_all_further_calls(no_waiting):
@@ -199,3 +206,15 @@ async def test_no_key_never_calls_sarvam():
     client = Sarvam(Settings(_env_file=None, database_url="postgresql://x"))
     with pytest.raises(ProviderUnavailable, match="no Sarvam key"):
         await client.translate("a", "hi")
+
+
+async def test_marathi_uses_its_own_voice():
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json={"audios": [base64.b64encode(b"s").decode()]})
+
+    await sarvam(handler).tts("नमस्कार", "mr")
+    assert sent["language_code"] == "mr-IN"
+    assert sent["speaker"] == "ritu_mr_narration"

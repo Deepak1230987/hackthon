@@ -17,10 +17,9 @@ import {
   submitUrl,
   uploadDocument,
 } from "@/lib/api";
+import { LANGUAGES } from "@/lib/languages";
 import { formatDate, sourceHost } from "@/lib/provenance";
 import type { DocumentView } from "@/lib/types";
-
-const LANGUAGES = [{ code: "hi", label: "हिन्दी", english: "Hindi" }];
 
 const TABS = [
   { id: "upload", label: "Upload" },
@@ -58,7 +57,7 @@ export function SourceInput() {
   const [url, setUrl] = useState("");
   const [library, setLibrary] = useState<Library>({ status: "idle" });
   const [libraryId, setLibraryId] = useState<string | null>(null);
-  const [language, setLanguage] = useState(LANGUAGES[0].code);
+  const [language, setLanguage] = useState<string>(LANGUAGES[0].code);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -360,8 +359,10 @@ export function SourceInput() {
       </button>
 
       <p className="text-sm text-muted">
-        Documents are stored so they can be checked and reused. Use public
-        documents only, not anything with personal details.
+        Documents are stored so they can be checked and reused, so use public
+        documents only, not anything with personal details. Your answers to
+        questions stay only in memory for this check, and voice recordings are
+        never kept.
       </p>
     </form>
   );

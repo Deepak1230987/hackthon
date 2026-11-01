@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { audioUrl } from "@/lib/api";
 import { moreMayCome, nextPlayable } from "@/lib/audioQueue";
+import { languageOf } from "@/lib/languages";
 import type { Claim, ClauseRef, Sentence } from "@/lib/types";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
@@ -134,7 +135,7 @@ export function AudioPlayer({
           onClick={() => setEnglish((on) => !on)}
           className="min-h-11 rounded-md border border-line bg-surface px-3 text-sm font-medium hover:border-accent focus-visible:outline-2 focus-visible:outline-accent"
         >
-          {english ? "Show Hindi" : "Show English"}
+          {english ? `Show ${languageOf(language).english}` : "Show English"}
         </button>
       </div>
 

@@ -46,7 +46,9 @@ async def tts(state: RunState, deps: Deps) -> None:
     failure: list[str] = []
 
     async def one(sentence: Sentence) -> None:
-        path = audio_path(settings.tts_model, settings.tts_voice, language, sentence.translated_text)
+        path = audio_path(
+            settings.tts_model, settings.voice_for(language), language, sentence.translated_text
+        )
         async with semaphore:
             if failure:
                 return

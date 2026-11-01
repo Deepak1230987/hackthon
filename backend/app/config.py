@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     embedding_dim: int | None = None
     tts_model: str = "bulbul:v4-flash"
     tts_voice: str = "ritu_hi_customer"
+    tts_voice_mr: str = "ritu_mr_narration"
     translate_model: str = "sarvam-translate:v1"
     stt_model: str = "saaras:v4"
 
@@ -40,6 +41,9 @@ class Settings(BaseSettings):
 
     allowed_origins: str = "http://localhost:3000"
     upload_dir: Path = Path(".uploads")
+
+    def voice_for(self, language: str) -> str:
+        return self.tts_voice_mr if language == "mr" else self.tts_voice
 
     @property
     def sqlalchemy_url(self) -> str:

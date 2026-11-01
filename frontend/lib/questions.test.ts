@@ -24,6 +24,10 @@ test("every registry field has Hindi, and an unknown one falls back to English",
   for (const name of names) {
     assert.match(questionText(question({ name })), /[ऀ-ॿ]/, name);
   }
+  for (const name of names) {
+    assert.match(questionText(question({ name }), "mr"), /[\u0900-\u097F]/, name);
+    assert.notEqual(questionText(question({ name }), "mr"), questionText(question({ name }), "hi"), name);
+  }
   assert.equal(questionText(question({ name: "new_field" })), "An English question?");
 });
 
@@ -36,6 +40,9 @@ test("the confirmation reads naturally", () => {
     "2,50,000 रुपये",
   );
   assert.equal(answerLabel(question({ type: "int", unit: "years" }), 25), "25 साल");
+  assert.equal(answerLabel(question({ type: "bool" }), true, "mr"), "हो");
+  assert.equal(answerLabel(question({ type: "enum" }), "farmer", "mr"), "शेतकरी");
+  assert.equal(answerLabel(question({ type: "int", unit: "years" }), 25, "mr"), "25 वर्षे");
 });
 
 test("typed numbers accept commas, and anything else is left for the backend", () => {

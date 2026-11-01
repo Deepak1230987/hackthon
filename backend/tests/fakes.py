@@ -50,7 +50,7 @@ class FakeSarvam:
             raise ProviderUnavailable("no Sarvam key")
         return b"mp3:" + text.encode()
 
-    async def stt(self, audio: bytes, content_type: str) -> tuple[str, float | None]:
+    async def stt(self, audio: bytes, content_type: str, language: str) -> tuple[str, float | None]:
         if self.stt_fails:
             raise ProviderUnavailable("status 503")
         return self.stt_reply
