@@ -1,4 +1,4 @@
-// Wire contract with the backend. See docs/LLD.md sections 12.2, 12.3 and 12.5.
+// Wire contract with the backend.
 
 export type RunStatus =
   | "queued"

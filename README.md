@@ -74,7 +74,7 @@ flowchart TD
 
 ## Results
 
-Measured through the live API on 3 real government PDFs. This is a small sample, and the [evaluation](docs/EVALUATION.md) has the method and full figures.
+Measured through the live API on 3 real government PDFs. This is a small sample.
 
 | Metric | Result |
 |---|---|
@@ -154,17 +154,3 @@ Backend integration tests are skipped unless `TEST_DATABASE_URL` is set, and the
 - It isn't legal advice and doesn't file applications. The app says so.
 - One VM runs three documents at once, and the rest wait in a visible queue.
 - Voice recordings go to Sarvam to be transcribed. The app says so, and asks people not to say names or ID numbers.
-
-## Documents
-
-| Document | Read it for |
-|---|---|
-| [Evaluation](docs/EVALUATION.md) | Measured results, how they were measured, and what wasn't |
-| [High-level design](docs/HLD.md) | Goals, components, key decisions, degraded modes |
-| [Low-level design](docs/LLD.md) | Schema, graph nodes, algorithms, API |
-| [Stress test](docs/STRESS_TEST.md) | Live findings, design attacks, failure matrix |
-| [Deployment](docs/DEPLOYMENT.md) | VM, Vercel, automatic deployment, laptop standby |
-| [Handover](docs/HANDOVER.md) | Data flow and mock judge questions |
-| [Implementation plan](docs/IMPLEMENTATION_PLAN.md) | Phases, gates, submission checklist |
-
-The design documents were written before the build. Where they differ from the code on the VM's region or the primary LLM, the code and this README are correct.

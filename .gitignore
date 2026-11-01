@@ -20,4 +20,5 @@ backend/.uploads/
 .DS_Store
 Thumbs.db
 
-/docs
+# Documentation
+/docs/
