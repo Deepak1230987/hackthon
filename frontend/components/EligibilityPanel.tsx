@@ -19,12 +19,12 @@ const OUTCOMES: Record<string, { hi: string; en: string; tone: string }> = {
     tone: "border-success/40",
   },
   DOES_NOT_MEET: {
-    hi: "आप इस दस्तावेज़ की कम से कम एक शर्त पूरी नहीं करते दिखते।",
+    hi: "इस दस्तावेज़ की कम से कम एक शर्त पूरी होती नहीं दिखती।",
     en: "You do not appear to meet at least one criterion in this document.",
     tone: "border-danger/40",
   },
   NEEDS_INFO: {
-    hi: "यह बताने के लिए हमें और जानकारी चाहिए।",
+    hi: "यह बताने के लिए कि आप पात्र हैं या नहीं, हमें और जानकारी चाहिए।",
     en: "We need more details to tell whether you qualify.",
     tone: "border-warning/40",
   },

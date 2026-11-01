@@ -255,3 +255,21 @@ async def test_transcript_is_never_stored(app, client, gateway):
     await client.post(f"/v1/runs/{run_id}/stt", **recording())
     view = httpx.Response(200, content=(await client.get(f"/v1/runs/{run_id}")).content)
     assert "987654" not in view.text
+
+
+async def test_verdict_has_fixed_hindi_that_costs_no_call(app, client, gateway):
+    from app.graph.nodes.translate import FIXED_TRANSLATIONS
+    from app.graph.nodes.script import VERDICT_TEXT
+    from app.eligibility.interpreter import CANNOT_DETERMINE, DOES_NOT_MEET, MEETS, NEEDS_INFO
+
+    fixed = FIXED_TRANSLATIONS["hi"]
+    for outcome in (MEETS, DOES_NOT_MEET, NEEDS_INFO, CANNOT_DETERMINE):
+        assert VERDICT_TEXT[outcome][0] in fixed
+
+    text = VERDICT_TEXT[MEETS][0]
+    gateway.sarvam.translations[TEXT] = GOOD_HINDI
+    view = await run(client, gateway, "fixed hindi", (text.replace("You appear", "You appear"),))
+    sentence = (await stored(app, view))[0]
+    assert sentence.translated_text == fixed[text]
+    assert sentence.translator == "fixed"
+    assert gateway.sarvam.translate_calls == 0

@@ -5,7 +5,9 @@ import uuid
 from sqlalchemy import select, update
 
 from app.db.models import Run, Sentence
+from app.eligibility.interpreter import CANNOT_DETERMINE, DOES_NOT_MEET, MEETS, NEEDS_INFO
 from app.graph.deps import Deps
+from app.graph.nodes.script import VERDICT_TEXT
 from app.graph.state import RunState
 from app.providers.budget import Budget, BudgetExhausted
 from app.providers.errors import ProviderUnavailable
@@ -15,6 +17,17 @@ log = logging.getLogger(__name__)
 
 SARVAM_CONCURRENCY = 3
 LLM_BATCH = 10
+
+# The verdict is fixed English, so its Hindi is fixed too. A translator chose a gender for the
+# listener, and an outcome this important shouldn't vary between runs or spend a call.
+FIXED_TRANSLATIONS = {
+    "hi": {
+        VERDICT_TEXT[MEETS][0]: "आप इस दस्तावेज़ की बताई गई शर्तें पूरी करते दिखते हैं।",
+        VERDICT_TEXT[DOES_NOT_MEET][0]: "इस दस्तावेज़ की कम से कम एक शर्त पूरी होती नहीं दिखती।",
+        VERDICT_TEXT[NEEDS_INFO][0]: "यह बताने के लिए कि आप पात्र हैं या नहीं, हमें और जानकारी चाहिए।",
+        VERDICT_TEXT[CANNOT_DETERMINE][0]: "हम इस दस्तावेज़ से यह नहीं बता सकते कि आप पात्र हैं या नहीं।",
+    }
+}
 
 
 async def _pending(state: RunState, deps: Deps) -> list[Sentence]:
@@ -113,6 +126,11 @@ async def translate(state: RunState, deps: Deps) -> None:
                 )
             await session.commit()
         return
+
+    fixed = FIXED_TRANSLATIONS.get(language, {})
+    for sentence in [s for s in sentences if s.source_text in fixed]:
+        await _save(run_id, sentence, fixed[sentence.source_text], "fixed", deps)
+    sentences = [s for s in sentences if s.source_text not in fixed]
 
     attempts = state.get("guard_attempts", {})
     # Sarvam would repeat the same wording, so a sentence the guard failed goes to the LLM.
