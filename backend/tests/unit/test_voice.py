@@ -25,6 +25,11 @@ from app.voice.guard import numbers_match
         ("Apply within 30 days.", "30 दिनों के भीतर आवेदन करें।"),
         ("Reservation is 50 percent.", "आरक्षण 50 प्रतिशत है।"),
         ("Apply at the office.", "कार्यालय में आवेदन करें।"),
+        # Both wrongly flagged on a real scholarship document.
+        ("Disbursement is 31st October.", "भुगतान 31 अक्टूबर को होता है।"),
+        ("It is available for only one year.", "यह सिर्फ 1 साल के लिए मिलती है।"),
+        ("It is available for 1 year.", "यह एक साल के लिए मिलती है।"),
+        ("Verification is due by 31stAugust.", "सत्यापन 31 अगस्त तक होना चाहिए।"),
     ],
 )
 def test_same_numbers_pass(source, translated):
@@ -40,6 +45,9 @@ def test_same_numbers_pass(source, translated):
         ("The cut-off date is 01.02.2019.", "अंतिम तिथि 2 जनवरी 2019 है।"),
         ("Apply within 30 days.", "दिनों के भीतर आवेदन करें।"),
         ("Apply at the office.", "10 दिनों में कार्यालय में आवेदन करें।"),
+        ("Disbursement is 31st October.", "भुगतान 30 अक्टूबर को होता है।"),
+        ("It is available for only one year.", "यह सिर्फ 2 साल के लिए मिलती है।"),
+        ("You get 2 installments.", "आपको 3 किस्तें मिलती हैं।"),
     ],
 )
 def test_changed_missing_or_added_numbers_fail(source, translated):
