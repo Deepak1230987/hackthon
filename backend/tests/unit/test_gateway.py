@@ -16,9 +16,7 @@ def _gateway(gemini, openai=None, **config):
         _env_file=None,
         database_url="postgresql://x",
         gemini_api_key="g",
-        ocr_model="primary",
-        ocr_fallback_model="secondary",
-        **config,
+        **{"ocr_model": "primary", "ocr_fallback_model": "secondary", **config},
     )
     gateway = Gateway(settings)
     gateway._client = httpx.AsyncClient(transport=httpx.MockTransport(gemini))
@@ -57,10 +55,10 @@ async def test_recitation_falls_back_to_openai_when_configured():
         lambda r: httpx.Response(200, json=RECITATION),
         openai,
         openai_api_key="o",
-        llm_fallback_model="vision",
+        llm_fallback_model="gpt-vision",
     )
     assert await gateway.vision_ocr(b"png") == USABLE
-    assert sent["model"] == "vision"
+    assert sent["model"] == "gpt-vision"
     assert sent["messages"][0]["content"][1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
@@ -69,7 +67,7 @@ async def test_openai_failure_keeps_both_reasons():
         lambda r: httpx.Response(200, json=RECITATION),
         lambda r: httpx.Response(401),
         openai_api_key="o",
-        llm_fallback_model="vision",
+        llm_fallback_model="gpt-vision",
     )
     with pytest.raises(ProviderUnavailable, match="recitation, then OpenAI: status 401"):
         await gateway.vision_ocr(b"png")
@@ -93,7 +91,7 @@ async def test_openai_first_reads_the_page_without_gemini():
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
     gateway = _gateway(
-        gemini, openai, openai_api_key="o", llm_fallback_model="vision", primary_provider="openai"
+        gemini, openai, openai_api_key="o", ocr_model="gpt-vision", ocr_fallback_model="secondary"
     )
     assert (await gateway.vision_ocr(b"png"))[0]["text"] == "नियम"
 
@@ -107,7 +105,15 @@ async def test_openai_first_falls_back_to_gemini_for_ocr():
         lambda r: httpx.Response(200, json=good),
         openai,
         openai_api_key="o",
-        llm_fallback_model="vision",
-        primary_provider="openai",
+        ocr_model="gpt-vision",
     )
     assert (await gateway.vision_ocr(b"png"))[0]["text"] == "a"
+
+
+async def test_primary_ocr_model_on_openai_without_a_key_uses_gemini():
+    def openai(request):
+        raise AssertionError("must not be called")
+
+    reply = {"candidates": [{"content": {"parts": [{"text": json.dumps(ITEMS)}]}}]}
+    gateway = _gateway(lambda r: httpx.Response(200, json=reply), openai, ocr_model="gpt-vision")
+    assert await gateway.vision_ocr(b"png") == USABLE

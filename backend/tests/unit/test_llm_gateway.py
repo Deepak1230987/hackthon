@@ -39,7 +39,7 @@ def openai_reply(text):
 
 
 def make(gemini, openai=None, monkeypatch=None):
-    config = {"openai_api_key": "o", "llm_fallback_model": "backup"} if openai else {}
+    config = {"openai_api_key": "o", "llm_fallback_model": "gpt-backup"} if openai else {}
     gateway = Gateway(
         Settings(_env_file=None, database_url="postgresql://x", llm_primary_model="main", **config)
     )
@@ -238,9 +238,8 @@ def openai_first(gemini, openai):
         database_url="postgresql://x",
         gemini_api_key="g",
         openai_api_key="o",
-        primary_provider="openai",
-        llm_primary_model="main",
-        llm_fallback_model="backup",
+        llm_primary_model="gpt-main",
+        llm_fallback_model="gemini-backup",
     )
     gateway = Gateway(settings)
     gateway._client = httpx.AsyncClient(transport=httpx.MockTransport(gemini))
@@ -307,8 +306,8 @@ async def test_openai_first_without_a_key_stays_on_gemini(no_waiting):
         _env_file=None,
         database_url="postgresql://x",
         gemini_api_key="g",
-        primary_provider="openai",
-        llm_primary_model="main",
+        llm_primary_model="gpt-main",
+        llm_fallback_model="gemini-backup",
     )
     gateway = Gateway(settings)
     gateway._client = httpx.AsyncClient(

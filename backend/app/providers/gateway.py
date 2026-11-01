@@ -26,6 +26,7 @@ EMBED_BATCH = 64
 RETRYABLE = {429, 500, 502, 503, 504}
 # A per-minute limit clears within this. Daily quotas ask for hours.
 MAX_REQUESTED_DELAY_S = 65
+OPENAI_MODEL_PREFIXES = ("gpt-", "o1", "o3", "o4")
 
 
 Model = TypeVar("Model", bound=BaseModel)
@@ -33,6 +34,10 @@ Model = TypeVar("Model", bound=BaseModel)
 
 class ProviderUnavailable(Exception):
     pass
+
+
+def _is_openai(model: str) -> bool:
+    return model.startswith(OPENAI_MODEL_PREFIXES)
 
 
 def gemini_schema(schema: dict[str, Any], defs: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -89,9 +94,6 @@ class Gateway:
         )
         self._circuits: dict[str, Circuit] = {}
 
-    def _openai_ready(self) -> bool:
-        return bool(self._settings.openai_api_key and self._settings.llm_fallback_model)
-
     def _circuit(self, provider: str) -> Circuit:
         return self._circuits.setdefault(provider, Circuit())
 
@@ -130,17 +132,14 @@ class Gateway:
         settings = self._settings
         # Triage only decides whether to carry on, so it needn't use the slower model.
         primary = settings.llm_fast_model if task in FAST_TASKS else ""
-        providers = [("gemini", self._gemini_text, primary or settings.llm_primary_model)]
-        if self._openai_ready():
-            providers.append(("openai", self._openai_text, settings.llm_fallback_model))
-        if settings.primary_provider == "openai":
-            providers.reverse()
-
         failure = "no LLM model configured"
         previous = None
-        for provider, call, model in providers:
-            if not model:
+        for model in (primary or settings.llm_primary_model, settings.llm_fallback_model):
+            if not model or (_is_openai(model) and not settings.openai_api_key):
                 continue
+            provider, call = (
+                ("openai", self._openai_text) if _is_openai(model) else ("gemini", self._gemini_text)
+            )
             if previous:
                 await budget.failover(previous, provider, failure)
             previous = provider
@@ -261,21 +260,34 @@ class Gateway:
             vectors += found
         return vectors
 
+    def _ocr_models(self) -> list[str]:
+        settings = self._settings
+        models = [model for model in (settings.ocr_model, settings.ocr_fallback_model) if model]
+        if not any(_is_openai(model) for model in models):
+            # Gemini refuses pages that quote known text, so keep a way to read them.
+            llm_models = (settings.llm_fallback_model, settings.llm_primary_model)
+            models += [model for model in llm_models if _is_openai(model)][:1]
+        return models
+
     async def vision_ocr(self, image: bytes) -> list[dict[str, str]]:
-        readers = [("Gemini", self._gemini_ocr)]
-        if self._openai_ready():
-            readers.append(("OpenAI", self._openai_ocr))
-        if self._settings.primary_provider == "openai":
-            readers.reverse()
-        failure = ""
-        for name, read in readers:
+        failure = "no OCR model configured"
+        last_provider = None
+        recited = False
+        for model in self._ocr_models():
+            is_openai = _is_openai(model)
+            if (is_openai and not self._settings.openai_api_key) or (recited and not is_openai):
+                continue
+            provider, read = ("OpenAI", self._openai_ocr) if is_openai else ("Gemini", self._gemini_ocr)
             try:
-                return await read(image)
+                return await read(image, model)
             except ProviderUnavailable as exc:
-                failure = f"{failure}, then {name}: {exc}" if failure else str(exc)
+                moved_on = last_provider not in (None, provider)
+                failure = f"{failure}, then {provider}: {exc}" if moved_on else str(exc)
+                recited = recited or str(exc) == "recitation"
+                last_provider = provider
         raise ProviderUnavailable(failure)
 
-    async def _gemini_ocr(self, image: bytes) -> list[dict[str, str]]:
+    async def _gemini_ocr(self, image: bytes, model: str) -> list[dict[str, str]]:
         body = {
             "contents": [
                 {
@@ -296,30 +308,22 @@ class Gateway:
                 "responseSchema": OCR_SCHEMA,
             },
         }
-        settings = self._settings
-        models = [model for model in (settings.ocr_model, settings.ocr_fallback_model) if model]
-        failure = "no OCR model configured"
-        for model in models:
-            try:
-                result = await self._post(model, "generateContent", body)
-                candidate = result["candidates"][0]
-                if candidate.get("finishReason") == "RECITATION":
-                    # Gemini won't copy text it recognises, such as a quoted statute. Every
-                    # Gemini model refuses alike, so only another provider can read this page.
-                    failure = "recitation"
-                    break
-                parts = candidate["content"]["parts"]
-                return _ocr_items(json.loads("".join(part.get("text", "") for part in parts)))
-            except ProviderUnavailable as exc:
-                failure = str(exc)
-            except (KeyError, IndexError, TypeError, ValueError) as exc:
-                failure = f"unusable reply: {type(exc).__name__}"
-        raise ProviderUnavailable(failure)
+        result = await self._post(model, "generateContent", body)
+        try:
+            candidate = result["candidates"][0]
+            if candidate.get("finishReason") == "RECITATION":
+                # Gemini won't copy text it recognises, such as a quoted statute. Every
+                # Gemini model refuses alike, so only another provider can read this page.
+                raise ProviderUnavailable("recitation")
+            parts = candidate["content"]["parts"]
+            return _ocr_items(json.loads("".join(part.get("text", "") for part in parts)))
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 
-    async def _openai_ocr(self, image: bytes) -> list[dict[str, str]]:
+    async def _openai_ocr(self, image: bytes, model: str) -> list[dict[str, str]]:
         url = f"data:image/png;base64,{base64.b64encode(image).decode()}"
         body = {
-            "model": self._settings.llm_fallback_model,
+            "model": model,
             "temperature": 0,
             "messages": [
                 {
