@@ -26,22 +26,22 @@ function ClaimRow({
   const selected = claim.clauses.some((c) => c.id === selectedClauseId);
   return (
     <li
-      className={`rounded-md border ${
+      className={`border-l-4 ${
         selected
           ? "border-highlight-strong bg-highlight-soft"
-          : "border-line bg-surface hover:border-accent"
+          : "border-line hover:border-accent"
       }`}
     >
       <button
         type="button"
         aria-pressed={selected}
         onClick={() => onShowSource(first)}
-        className="w-full rounded-md px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-accent"
+        className="w-full px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="block">{claim.text}</span>
+        <span className="block font-medium">{claim.text}</span>
         <span
           lang={DEVANAGARI.test(claim.quote) ? "hi" : undefined}
-          className="mt-1 block border-l-2 border-line pl-2 text-sm text-muted"
+          className="mt-1 block font-display text-muted"
         >
           {claim.quote}
         </span>
@@ -88,7 +88,7 @@ export function RightsCard({
 
   return (
     <section aria-labelledby="rights-heading">
-      <h2 id="rights-heading" className="text-lg font-semibold">
+      <h2 id="rights-heading" className="section-title">
         Your rights in this document
       </h2>
       <p className="mt-1 text-sm text-muted">
@@ -102,14 +102,14 @@ export function RightsCard({
         </p>
       )}
 
-      <div aria-live="polite" className="mt-3 flex flex-col gap-4">
+      <div aria-live="polite" className="mt-4 flex flex-col gap-6">
         {FIELDS.map(({ field, label }) => {
           const group = usable.filter((c) => c.field === field);
           if (group.length === 0) return null;
           return (
             <div key={field}>
               <h3 className="mb-1.5 font-semibold">{label}</h3>
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col gap-3">
                 {group.map((claim) => (
                   <ClaimRow
                     key={claim.id}

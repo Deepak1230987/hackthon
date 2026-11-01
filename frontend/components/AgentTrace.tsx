@@ -21,7 +21,7 @@ const NODE_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<StepStatus, { dot: string; label: string }> = {
-  running: { dot: "bg-accent animate-pulse", label: "In progress" },
+  running: { dot: "bg-accent animate-pulse motion-reduce:animate-none", label: "In progress" },
   done: { dot: "bg-success", label: "Done" },
   failed: { dot: "bg-danger", label: "Failed" },
   interrupted: { dot: "bg-warning", label: "Interrupted" },
@@ -135,7 +135,7 @@ export function AgentTrace({
   const open = choice ?? !foldable;
   return (
     <section aria-labelledby="trace-heading">
-      <h2 id="trace-heading" className="mb-4 text-lg font-semibold">
+      <h2 id="trace-heading" className="section-title mb-4">
         Steps
       </h2>
       <SelfCheck steps={steps} finished={finished} />

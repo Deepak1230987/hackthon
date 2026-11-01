@@ -1,7 +1,7 @@
 import type { Clause } from "@/lib/types";
 
 const KIND_STYLES: Record<Clause["kind"], string> = {
-  heading: "font-semibold",
+  heading: "text-lg",
   para: "",
   table_row: "",
 };
@@ -37,14 +37,14 @@ export function ClauseList({
               type="button"
               aria-pressed={selected}
               onClick={() => onSelect(clause)}
-              className={`w-full rounded-md border px-3 py-2 text-left text-sm break-words focus-visible:outline-2 focus-visible:outline-accent ${
+              className={`w-full border-l-4 px-3 py-2 text-left font-display break-words focus-visible:outline-2 focus-visible:outline-accent ${
                 selected
                   ? "border-highlight-strong bg-highlight-soft"
-                  : "border-line bg-surface hover:border-accent"
+                  : "border-line hover:border-accent"
               }`}
             >
               {clause.kind === "table_row" && (
-                <span className="mb-0.5 block text-xs text-muted">
+                <span className="mb-0.5 block font-sans text-xs text-muted">
                   Table row
                 </span>
               )}

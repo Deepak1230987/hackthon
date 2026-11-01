@@ -19,7 +19,7 @@ export function RunHistory() {
 
   return (
     <section aria-labelledby="history-heading">
-      <h2 id="history-heading" className="text-lg font-semibold">
+      <h2 id="history-heading" className="section-title">
         Your documents
       </h2>
       <p className="mt-1 text-sm text-muted">

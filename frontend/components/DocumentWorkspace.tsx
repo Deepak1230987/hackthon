@@ -178,7 +178,7 @@ export function DocumentWorkspace({
       <div className="flex min-w-0 flex-col gap-6">
         {children}
         {isOldDocument(doc.issue_date) && (
-          <p className="rounded-md border border-warning/40 bg-highlight-soft px-3 py-2 text-sm font-medium text-warning">
+          <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-sm font-medium text-warning">
             This document looks more than {OLD_DOCUMENT_YEARS} years old. The
             rules may have changed, so check the latest version with the issuing
             office.
@@ -192,6 +192,8 @@ export function DocumentWorkspace({
           claims={claims}
           onShowSource={showSource}
         />
+        {/* While it runs, the checks are the thing to watch, so they come first. */}
+        {!isTerminal(status) && trace}
         <AudioPlayer
           sentences={sentences}
           claims={claims}
@@ -209,9 +211,6 @@ export function DocumentWorkspace({
             rely on it.
           </p>
         )}
-        {(status === "completed" || status === "partial") && (
-          <QuestionBox runId={runId} language={language} onShowSource={showSource} />
-        )}
         <RightsCard
           status={status}
           claims={claims}
@@ -219,11 +218,14 @@ export function DocumentWorkspace({
           selectedClauseId={selectedId}
           onShowSource={showSource}
         />
-        {trace}
+        {(status === "completed" || status === "partial") && (
+          <QuestionBox runId={runId} language={language} onShowSource={showSource} />
+        )}
+        {isTerminal(status) && trace}
         <ProvenanceBadge document={doc} />
 
         <section aria-labelledby="clauses-heading">
-          <h2 id="clauses-heading" className="text-lg font-semibold">
+          <h2 id="clauses-heading" className="section-title">
             Clauses
             {data && (
               <span className="font-normal text-muted">

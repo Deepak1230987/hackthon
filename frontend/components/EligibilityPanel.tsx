@@ -18,25 +18,25 @@ const OUTCOMES: Record<string, { hi: string; mr: string; en: string; tone: strin
     mr: "या दस्तऐवजात सांगितलेल्या अटी तुम्ही पूर्ण करत असल्याचे दिसते.",
     hi: "आप इस दस्तावेज़ की बताई गई शर्तें पूरी करते दिखते हैं।",
     en: "You appear to meet the criteria this document states.",
-    tone: "border-success/40",
+    tone: "border-success bg-success-soft",
   },
   DOES_NOT_MEET: {
     mr: "या दस्तऐवजातील किमान एक अट पूर्ण होत असल्याचे दिसत नाही.",
     hi: "इस दस्तावेज़ की कम से कम एक शर्त पूरी होती नहीं दिखती।",
     en: "You do not appear to meet at least one criterion in this document.",
-    tone: "border-danger/40",
+    tone: "border-danger bg-danger-soft",
   },
   NEEDS_INFO: {
     mr: "तुम्ही पात्र आहात की नाही हे सांगण्यासाठी आम्हाला आणखी माहिती हवी आहे.",
     hi: "यह बताने के लिए कि आप पात्र हैं या नहीं, हमें और जानकारी चाहिए।",
     en: "We need more details to tell whether you qualify.",
-    tone: "border-warning/40",
+    tone: "border-warning bg-warning-soft",
   },
   CANNOT_DETERMINE: {
     mr: "तुम्ही पात्र आहात की नाही हे आम्ही या दस्तऐवजावरून सांगू शकत नाही.",
     hi: "हम इस दस्तावेज़ से यह नहीं बता सकते कि आप पात्र हैं या नहीं।",
     en: "We cannot tell from this document whether you qualify.",
-    tone: "border-warning/40",
+    tone: "border-warning bg-warning-soft",
   },
 };
 
@@ -177,7 +177,7 @@ function QuestionForm({
 
   return (
     <div className="mt-2">
-      <p ref={questionRef} tabIndex={-1} lang={language} className="text-lg font-medium outline-none">
+      <p ref={questionRef} tabIndex={-1} lang={language} className="font-display text-2xl leading-snug outline-none">
         {questionText(question, language)}
       </p>
       <p className="text-sm text-muted">{question.question_en}</p>
@@ -392,9 +392,9 @@ export function EligibilityPanel({
   return (
     <section
       aria-labelledby="eligibility-heading"
-      className={`rounded-lg border-2 bg-surface p-4 ${outcome.tone}`}
+      className={`border-l-8 p-4 ${outcome.tone}`}
     >
-      <h2 id="eligibility-heading" lang={language} className="text-lg font-semibold">
+      <h2 id="eligibility-heading" lang={language} className="font-display text-3xl leading-snug">
         {language === "mr" ? outcome.mr : outcome.hi}
       </h2>
       <p className="text-sm text-muted">{outcome.en}</p>

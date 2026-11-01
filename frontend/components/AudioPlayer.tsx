@@ -83,7 +83,7 @@ export function AudioPlayer({
 
   return (
     <section aria-labelledby="audio-heading">
-      <h2 id="audio-heading" className="text-lg font-semibold">
+      <h2 id="audio-heading" className="section-title">
         Listen to the explanation
       </h2>
 
@@ -97,7 +97,7 @@ export function AudioPlayer({
         onError={() => setFailed(true)}
       />
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-accent-strong p-3">
         <button
           type="button"
           disabled={!ready}
@@ -107,11 +107,11 @@ export function AudioPlayer({
             else if (current !== null && audio?.src) audio.play().catch(() => setFailed(true));
             else playNext(-1);
           }}
-          className="min-h-11 rounded-md bg-accent px-5 font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="min-h-12 min-w-28 rounded-md bg-highlight px-6 text-lg font-semibold text-ink hover:bg-white disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           {playing ? "Pause" : current !== null ? "Resume" : "Play"}
         </button>
-        <label className="flex items-center gap-2 text-sm text-muted">
+        <label className="flex items-center gap-2 text-sm text-white">
           Speed
           <select
             value={speed}
@@ -120,7 +120,7 @@ export function AudioPlayer({
               setSpeed(next);
               if (audioRef.current) audioRef.current.playbackRate = next;
             }}
-            className="min-h-11 rounded-md border border-line bg-surface px-2 text-ink"
+            className="min-h-11 rounded-md border border-line bg-surface px-2 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             {SPEEDS.map((value) => (
               <option key={value} value={value}>
@@ -133,7 +133,7 @@ export function AudioPlayer({
           type="button"
           aria-pressed={english}
           onClick={() => setEnglish((on) => !on)}
-          className="min-h-11 rounded-md border border-line bg-surface px-3 text-sm font-medium hover:border-accent focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-h-11 rounded-md border border-white/60 px-3 text-sm font-medium text-white hover:border-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           {english ? `Show ${languageOf(language).english}` : "Show English"}
         </button>
@@ -156,7 +156,7 @@ export function AudioPlayer({
         </p>
       )}
 
-      <ol className="mt-3 flex flex-col gap-1.5">
+      <ol className="mt-4 flex flex-col gap-1">
         {sentences
           .filter((s) => s.guard_status !== "pending")
           .map((sentence) => {
@@ -175,10 +175,10 @@ export function AudioPlayer({
                     showSource(sentence);
                     if (sentence.audio_path) play(sentence);
                   }}
-                  className={`w-full rounded-md border px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-accent ${
+                  className={`w-full border-l-4 px-3 py-2 text-left text-lg break-words focus-visible:outline-2 focus-visible:outline-accent ${
                     speaking || sourced
                       ? "border-highlight-strong bg-highlight-soft"
-                      : "border-line bg-surface hover:border-accent"
+                      : "border-line hover:border-accent"
                   }`}
                 >
                   <span lang={showEnglish ? "en" : language} className="block">

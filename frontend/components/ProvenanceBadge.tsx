@@ -1,11 +1,5 @@
 import { documentFileUrl } from "@/lib/api";
-import {
-  formatDate,
-  formatDateTime,
-  isOldDocument,
-  OLD_DOCUMENT_YEARS,
-  sourceHost,
-} from "@/lib/provenance";
+import { formatDate, formatDateTime, sourceHost } from "@/lib/provenance";
 import type { DocumentView } from "@/lib/types";
 
 const METHOD_TEXT: Record<DocumentView["fetch_method"], string> = {
@@ -25,14 +19,13 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export function ProvenanceBadge({ document }: { document: DocumentView }) {
   const host = sourceHost(document.source_url);
-  const old = isOldDocument(document.issue_date);
 
   return (
     <section
       aria-labelledby="provenance-heading"
       className="rounded-lg border border-line bg-surface p-4"
     >
-      <h2 id="provenance-heading" className="font-semibold break-words">
+      <h2 id="provenance-heading" className="section-title break-words">
         {document.title ?? "Document details"}
       </h2>
       <dl className="mt-3 flex flex-col gap-2 text-sm">
@@ -81,13 +74,6 @@ export function ProvenanceBadge({ document }: { document: DocumentView }) {
           {document.sha256}
         </code>
       </details>
-      {old && (
-        <p className="mt-3 text-sm font-medium text-warning">
-          This document was issued more than {OLD_DOCUMENT_YEARS} years ago. The
-          rules may have changed, so check the latest version with the issuing
-          office.
-        </p>
-      )}
     </section>
   );
 }

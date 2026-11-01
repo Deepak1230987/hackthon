@@ -1,16 +1,29 @@
 import type { Metadata } from "next";
-import { Noto_Sans, Noto_Sans_Devanagari } from "next/font/google";
+import {
+  Mukta,
+  Tiro_Devanagari_Hindi,
+  Tiro_Devanagari_Marathi,
+} from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
-const notoSans = Noto_Sans({
-  variable: "--font-noto-sans",
-  subsets: ["latin"],
+const mukta = Mukta({
+  variable: "--font-mukta",
+  subsets: ["latin", "devanagari"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const notoDevanagari = Noto_Sans_Devanagari({
-  variable: "--font-noto-devanagari",
-  subsets: ["devanagari"],
+const tiroHindi = Tiro_Devanagari_Hindi({
+  variable: "--font-tiro-hindi",
+  subsets: ["latin", "devanagari"],
+  weight: "400",
+});
+
+const tiroMarathi = Tiro_Devanagari_Marathi({
+  variable: "--font-tiro-marathi",
+  subsets: ["latin", "devanagari"],
+  weight: "400",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -23,17 +36,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${notoSans.variable} ${notoDevanagari.variable} h-full antialiased`}
+      className={`${mukta.variable} ${tiroHindi.variable} ${tiroMarathi.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <header className="border-b border-line">
-          <div className="mx-auto w-full max-w-7xl px-4 py-3">
-            <Link href="/" className="text-xl font-bold text-accent">
-              Haq
+          <div className="mx-auto w-full max-w-7xl px-4 py-2">
+            <Link
+              href="/"
+              className="inline-flex min-h-11 items-baseline gap-2 text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <span lang="hi" className="font-display text-3xl">
+                हक़
+              </span>
+              <span className="font-semibold">Haq</span>
             </Link>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 lg:py-12">
           {children}
         </main>
         <footer className="border-t border-line">

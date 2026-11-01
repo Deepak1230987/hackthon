@@ -56,7 +56,7 @@ export function RunScreen({ id }: { id: string }) {
         </Link>
       </div>
       <div>
-        <h1 className="text-2xl font-semibold">
+        <h1 className="font-display text-3xl leading-tight lg:text-4xl">
           {!loaded
             ? "Loading your run…"
             : view.error

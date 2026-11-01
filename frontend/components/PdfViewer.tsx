@@ -171,7 +171,7 @@ export function PdfViewer({
             We read this page with OCR, so the exact position can&apos;t be
             marked. Compare this text with the page.
           </p>
-          <blockquote lang={clause.lang} className="mt-1 break-words">
+          <blockquote lang={clause.lang} className="mt-1 font-display text-base break-words">
             {clause.text}
           </blockquote>
         </div>
@@ -197,9 +197,10 @@ export function PdfViewer({
           <div ref={canvasHostRef} />
           {box && showing && (
             <div
+              key={clause?.id}
               ref={markRef}
               data-testid="clause-highlight"
-              className="pointer-events-none absolute rounded-sm bg-highlight/40 outline-2 outline-offset-1 outline-highlight-strong"
+              className="source-mark pointer-events-none absolute rounded-sm bg-highlight/40 outline-2 outline-offset-1 outline-highlight-strong"
               style={{
                 left: `${(box[0] / showing.width) * 100}%`,
                 top: `${(box[1] / showing.height) * 100}%`,

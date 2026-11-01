@@ -169,7 +169,7 @@ export function QuestionBox({
 
   return (
     <section aria-labelledby="ask-heading" className="rounded-lg border border-line bg-surface p-4">
-      <h2 id="ask-heading" lang={language} className="text-lg font-semibold">
+      <h2 id="ask-heading" lang={language} className="section-title">
         {languageOf(language).askHeading}
       </h2>
       <p className="text-sm text-muted">
