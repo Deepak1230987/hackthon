@@ -45,8 +45,8 @@ ANSWERABLE = ("completed", "partial")
 MAX_ANSWER_ATTEMPTS = 2
 ANSWER_FEEDBACK = (
     "\nYour last reply failed an automatic check: its quote wasn't an exact copy of the clause it"
-    " cited, or the quote didn't contain a number from the answer. Copy the quote character for"
-    " character from one clause, and cite that clause.\n"
+    " cited, or a number in the answer isn't in the clauses it cited. Copy the quote character for"
+    " character from one clause, and cite every clause the answer's numbers come from.\n"
 )
 NOT_ENGLISH_FEEDBACK = (
     "\nYour last reply failed an automatic check: the answer wasn't in English. Write the answer"
@@ -147,7 +147,10 @@ async def _verified_answer(
         answer = result.answer.strip()
         english = not _INDIC_SCRIPT.search(answer)
         problem = check_claim(
-            answer, result.quote, [CitedClause(clause.norm_text, clause.extraction) for clause in cited]
+            answer,
+            result.quote,
+            [CitedClause(clause.norm_text, clause.extraction) for clause in cited],
+            numbers_within_clauses=True,
         )
         if english and problem is None:
             break

@@ -380,3 +380,20 @@ async def test_an_answer_never_in_english_is_not_shown(client, gateway):
     gateway.replies["qa"] = [hindi, hindi]
     body = (await ask(client, run_id, "मुझे कितना मिलेगा?")).json()
     assert body["abstained"] is True
+
+
+async def test_an_answer_may_use_a_number_from_its_clause_beyond_the_quote(client, gateway):
+    # From a real table: "Rs. 525 for 10 months", quoting only "Hostelers: 525; 5250".
+    run_id = await finished_run(client, "beyond the quote")
+    gateway.replies["qa"] = [grounded(answer="Each student gets Rs. 12,000.", quote="selected student")]
+    gateway.sarvam.translations["Each student gets Rs. 12,000."] = "हर छात्र को 12,000 रुपये मिलते हैं।"
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is False
+
+
+async def test_an_answer_with_a_number_outside_its_clauses_is_never_shown(client, gateway):
+    run_id = await finished_run(client, "invented number")
+    wrong = grounded(answer="Each student gets Rs. 15,000.", quote="selected student")
+    gateway.replies["qa"] = [wrong, wrong]
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is True
