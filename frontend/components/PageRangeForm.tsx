@@ -1,13 +1,12 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { Spinner } from "@/components/ui";
 import { ApiRequestError, choosePageRange } from "@/lib/api";
 import { pageRangeProblem } from "@/lib/pageRange";
-
-const INPUT =
-  "min-h-11 w-24 rounded-md border border-line bg-surface px-3 focus-visible:outline-2 focus-visible:outline-accent";
 
 export function PageRangeForm({
   runId,
@@ -43,33 +42,34 @@ export function PageRangeForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="mt-3 flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
+    <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-end gap-3">
+      <label className="flex w-28 flex-col gap-1 text-sm font-semibold">
         First page
         <input
           value={from}
           inputMode="numeric"
           onChange={(e) => setFrom(e.target.value)}
-          className={`${INPUT} font-normal`}
+          className="field text-base font-normal"
         />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
+      <label className="flex w-28 flex-col gap-1 text-sm font-semibold">
         Last page
         <input
           value={to}
           inputMode="numeric"
           onChange={(e) => setTo(e.target.value)}
-          className={`${INPUT} font-normal`}
+          className="field text-base font-normal"
         />
       </label>
-      <button
-        type="submit"
-        disabled={starting}
-        className="min-h-11 rounded-md bg-accent px-4 font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
+      <button type="submit" disabled={starting} className="btn btn-primary min-h-12">
+        {starting ? <Spinner /> : <ArrowRight aria-hidden className="size-5" />}
         {starting ? "Starting…" : "Explain these pages"}
       </button>
-      {error && <p className="w-full text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="w-full text-sm text-danger">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

@@ -1,14 +1,28 @@
+import {
+  CalendarClock,
+  ClipboardCheck,
+  FileText,
+  Gift,
+  Landmark,
+  ListChecks,
+  SearchX,
+  ShieldCheck,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
+
+import { SourceChip } from "@/components/ui";
 import { isTerminal } from "@/lib/runReducer";
 import type { Claim, ClaimField, ClauseRef, RunStatus } from "@/lib/types";
 
-const FIELDS: { field: ClaimField; label: string }[] = [
-  { field: "benefit", label: "What you can get" },
-  { field: "eligibility", label: "Who is eligible" },
-  { field: "document", label: "Documents needed" },
-  { field: "deadline", label: "Deadlines" },
-  { field: "authority", label: "Who handles this" },
-  { field: "obligation", label: "What you must do" },
-  { field: "penalty", label: "Penalties" },
+const FIELDS: { field: ClaimField; label: string; icon: LucideIcon }[] = [
+  { field: "benefit", label: "What you can get", icon: Gift },
+  { field: "eligibility", label: "Who is eligible", icon: ClipboardCheck },
+  { field: "document", label: "Documents needed", icon: FileText },
+  { field: "deadline", label: "Deadlines", icon: CalendarClock },
+  { field: "authority", label: "Who handles this", icon: Landmark },
+  { field: "obligation", label: "What you must do", icon: ListChecks },
+  { field: "penalty", label: "Penalties", icon: TriangleAlert },
 ];
 
 const DEVANAGARI = /[ऀ-ॿ]/;
@@ -26,43 +40,37 @@ function ClaimRow({
   const selected = claim.clauses.some((c) => c.id === selectedClauseId);
   return (
     <li
-      className={`border-l-4 ${
+      className={`transition-colors ${
         selected
-          ? "border-highlight-strong bg-highlight-soft"
-          : "border-line hover:border-accent"
+          ? "bg-highlight-soft shadow-[inset_4px_0_0_var(--color-highlight-strong)]"
+          : ""
       }`}
     >
       <button
         type="button"
         aria-pressed={selected}
         onClick={() => onShowSource(first)}
-        className="w-full px-3 py-2 text-left break-words focus-visible:outline-2 focus-visible:outline-accent"
+        className="group w-full px-4 pt-3 text-left break-words"
       >
-        <span className="block font-medium">{claim.text}</span>
+        <span className="block text-lg leading-snug font-medium">{claim.text}</span>
         <span
           lang={DEVANAGARI.test(claim.quote) ? "hi" : undefined}
-          className="mt-1 block font-display text-muted"
+          className="mt-1 block font-display leading-relaxed text-muted"
         >
-          {claim.quote}
-        </span>
-        <span className="mt-1 block text-sm font-medium text-accent">
-          See the source on page {first.page}
+          “{claim.quote}”
         </span>
       </button>
-      {others.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 px-3 pb-2 text-sm">
-          {others.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              onClick={() => onShowSource(source)}
-              className="min-h-11 font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              Also on page {source.page}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-x-2 px-4 pb-1">
+        <SourceChip page={first.page} onClick={() => onShowSource(first)} />
+        {others.map((source) => (
+          <SourceChip
+            key={source.id}
+            page={source.page}
+            label={`Also on page ${source.page}`}
+            onClick={() => onShowSource(source)}
+          />
+        ))}
+      </div>
     </li>
   );
 }
@@ -91,7 +99,8 @@ export function RightsCard({
       <h2 id="rights-heading" className="section-title">
         Your rights in this document
       </h2>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 flex gap-2 text-sm text-muted">
+        <ShieldCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
         Each point was checked against the clause it came from. Tap one to see
         it in the document.
       </p>
@@ -102,14 +111,18 @@ export function RightsCard({
         </p>
       )}
 
-      <div aria-live="polite" className="mt-4 flex flex-col gap-6">
-        {FIELDS.map(({ field, label }) => {
+      <div aria-live="polite" className="mt-4 flex flex-col gap-4 empty:hidden">
+        {FIELDS.map(({ field, label, icon: Icon }) => {
           const group = usable.filter((c) => c.field === field);
           if (group.length === 0) return null;
           return (
-            <div key={field}>
-              <h3 className="mb-1.5 font-semibold">{label}</h3>
-              <ul className="flex flex-col gap-3">
+            <div key={field} className="card overflow-hidden">
+              <h3 className="flex items-center gap-2.5 border-b border-line bg-sunken/40 px-4 py-2.5 font-semibold">
+                <Icon aria-hidden className="size-5 text-accent" />
+                {label}
+                <span className="ml-auto text-sm font-normal text-muted">{group.length}</span>
+              </h3>
+              <ul className="divide-y divide-line">
                 {group.map((claim) => (
                   <ClaimRow
                     key={claim.id}
@@ -127,25 +140,28 @@ export function RightsCard({
       {finished && usable.length === 0 && (
         <p className="mt-3 text-sm text-muted">
           We couldn&apos;t confirm any rights from this document. You can still
-          read its clauses below.
+          read its clauses in the Document tab.
         </p>
       )}
 
       {finished && missing.length > 0 && (
-        <div className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm">
-          <h3 className="font-semibold">
-            {status === "completed"
-              ? "We didn't find these in this document"
-              : "Not confirmed in this run"}
-          </h3>
-          <p className="mt-0.5 text-muted">
-            {missing.map((f) => f.label).join(" · ")}
-          </p>
-          <p className="mt-1 text-muted">
-            {status === "completed"
-              ? "This check can miss things, so the document may still cover them. Look through the clauses below, or ask the issuing office."
-              : "This run ended early, so the document may still cover these."}
-          </p>
+        <div className="mt-4 flex gap-3 rounded-2xl border border-dashed border-line-strong px-4 py-3 text-sm">
+          <SearchX aria-hidden className="mt-0.5 size-5 shrink-0 text-muted" />
+          <div>
+            <h3 className="font-semibold">
+              {status === "completed"
+                ? "We didn't find these in this document"
+                : "Not confirmed in this run"}
+            </h3>
+            <p className="mt-0.5 font-medium">
+              {missing.map((f) => f.label).join(" · ")}
+            </p>
+            <p className="mt-1 text-muted">
+              {status === "completed"
+                ? "This check can miss things, so the document may still cover them. Look through its clauses in the Document tab, or ask the issuing office."
+                : "This run ended early, so the document may still cover these."}
+            </p>
+          </div>
         </div>
       )}
     </section>

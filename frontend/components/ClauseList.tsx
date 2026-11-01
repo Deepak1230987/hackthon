@@ -1,7 +1,8 @@
+import { Notice } from "@/components/ui";
 import type { Clause } from "@/lib/types";
 
 const KIND_STYLES: Record<Clause["kind"], string> = {
-  heading: "text-lg",
+  heading: "text-lg font-semibold",
   para: "",
   table_row: "",
 };
@@ -19,16 +20,16 @@ export function ClauseList({
 }) {
   if (pageFailed) {
     return (
-      <p className="text-sm font-medium text-danger">
+      <Notice tone="danger">
         We couldn&apos;t read this page, so nothing on it is used.
-      </p>
+      </Notice>
     );
   }
   if (clauses.length === 0) {
     return <p className="text-sm text-muted">No text was found on this page.</p>;
   }
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="flex flex-col gap-1">
       {clauses.map((clause) => {
         const selected = clause.id === selectedId;
         return (
@@ -37,10 +38,10 @@ export function ClauseList({
               type="button"
               aria-pressed={selected}
               onClick={() => onSelect(clause)}
-              className={`w-full border-l-4 px-3 py-2 text-left font-display break-words focus-visible:outline-2 focus-visible:outline-accent ${
+              className={`w-full rounded-lg px-3 py-2 text-left font-display leading-relaxed break-words transition-colors ${
                 selected
-                  ? "border-highlight-strong bg-highlight-soft"
-                  : "border-line hover:border-accent"
+                  ? "bg-highlight-soft shadow-[inset_3px_0_0_var(--color-highlight-strong)]"
+                  : "hover:bg-sunken/70"
               }`}
             >
               {clause.kind === "table_row" && (

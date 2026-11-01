@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Lock, Mic, SendHorizontal, Square } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
+import { SourceChip, Spinner } from "@/components/ui";
 import { ApiRequestError, askQuestion, audioUrl, questionFromSpeech } from "@/lib/api";
 import { languageOf } from "@/lib/languages";
 import type { ClauseRef, QaAnswer } from "@/lib/types";
 
 const MAX_QUESTION_CHARS = 500;
 const MAX_RECORDING_MS = 30_000;
-const BUTTON =
-  "min-h-11 rounded-md border border-line bg-surface px-4 font-medium hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent";
-const PRIMARY =
-  "min-h-11 rounded-md bg-accent px-5 font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
 type Asked = QaAnswer & { id: number; question: string };
 
@@ -32,44 +30,44 @@ function AnswerCard({
   onShowSource: (source: ClauseRef) => void;
 }) {
   return (
-    <li className="rounded-md border border-line bg-surface p-3">
-      <p className="text-sm text-muted">{asked.question}</p>
-      <p lang={asked.language} className="mt-1 font-medium">
-        {asked.answer}
+    <li className="flex flex-col gap-2">
+      <p
+        lang={asked.language}
+        className="max-w-[85%] self-end rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-white"
+      >
+        {asked.question}
       </p>
-      {asked.language !== "en" && (
-        <p className="text-sm text-muted">{asked.answer_en}</p>
-      )}
-      {asked.abstained && (
-        <p className="mt-1 text-sm text-muted">
-          {asked.authority
-            ? `You can ask ${asked.authority}, which issued it.`
-            : "You can ask the office that issued it."}
+      <div className="card rounded-bl-md p-4">
+        <p lang={asked.language} className="text-lg leading-relaxed font-medium">
+          {asked.answer}
         </p>
-      )}
-      {asked.audio_path && (
-        <audio
-          controls
-          preload="none"
-          src={audioUrl(asked.audio_path)}
-          aria-label="Listen to this answer"
-          className="mt-2 w-full"
-        />
-      )}
-      {asked.citations.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-x-4">
-          {asked.citations.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              onClick={() => onShowSource(source)}
-              className="min-h-11 text-left text-sm font-medium text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              See the source on page {source.page}
-            </button>
-          ))}
-        </div>
-      )}
+        {asked.language !== "en" && (
+          <p className="mt-1 text-sm text-muted">{asked.answer_en}</p>
+        )}
+        {asked.abstained && (
+          <p className="mt-1 text-sm text-muted">
+            {asked.authority
+              ? `You can ask ${asked.authority}, which issued it.`
+              : "You can ask the office that issued it."}
+          </p>
+        )}
+        {asked.audio_path && (
+          <audio
+            controls
+            preload="none"
+            src={audioUrl(asked.audio_path)}
+            aria-label="Listen to this answer"
+            className="mt-3 h-11 w-full"
+          />
+        )}
+        {asked.citations.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-x-2">
+            {asked.citations.map((source) => (
+              <SourceChip key={source.id} page={source.page} onClick={() => onShowSource(source)} />
+            ))}
+          </div>
+        )}
+      </div>
     </li>
   );
 }
@@ -83,6 +81,7 @@ export function QuestionBox({
   language?: string;
   onShowSource: (source: ClauseRef) => void;
 }) {
+  const words = languageOf(language);
   const [question, setQuestion] = useState("");
   const [answers, setAnswers] = useState<Asked[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -105,12 +104,12 @@ export function QuestionBox({
     };
   }, []);
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    const asked = question.trim();
+  const ask = async (text: string) => {
+    const asked = text.trim();
     if (!asked || asking) return;
     setAsking(true);
     setError(null);
+    setQuestion(asked);
     try {
       const reply = await askQuestion(runId, asked);
       setAnswers((known) => [{ ...reply, id: known.length, question: asked }, ...known]);
@@ -119,6 +118,19 @@ export function QuestionBox({
       setError(message(err));
     } finally {
       setAsking(false);
+    }
+  };
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void ask(question);
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // While an input method is composing Devanagari, Enter picks a word and doesn't send.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      void ask(question);
     }
   };
 
@@ -168,16 +180,19 @@ export function QuestionBox({
   const busy = asking || listening || recording;
 
   return (
-    <section aria-labelledby="ask-heading" className="rounded-lg border border-line bg-surface p-4">
+    <section aria-labelledby="ask-heading">
       <h2 id="ask-heading" lang={language} className="section-title">
-        {languageOf(language).askHeading}
+        {words.askHeading}
       </h2>
-      <p className="text-sm text-muted">
-        Ask about this document. If it doesn&apos;t say, we&apos;ll tell you. Please leave out
-        personal details. Questions aren&apos;t saved.
+      <p className="mt-1 flex gap-2 text-sm text-muted">
+        <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
+        <span>
+          Ask about this document. If it doesn&apos;t say, we&apos;ll tell you. Please leave out
+          personal details. Questions aren&apos;t saved.
+        </span>
       </p>
 
-      <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2">
+      <form onSubmit={onSubmit} className="card mt-3 p-2">
         <textarea
           ref={inputRef}
           aria-label="Your question"
@@ -185,20 +200,21 @@ export function QuestionBox({
           maxLength={MAX_QUESTION_CHARS}
           value={question}
           lang={language}
+          enterKeyHint="send"
+          placeholder={words.askHeading}
           onChange={(e) => setQuestion(e.target.value)}
-          className="w-full rounded-md border border-line bg-paper px-3 py-2 focus-visible:outline-2 focus-visible:outline-accent"
+          onKeyDown={onKeyDown}
+          className="w-full resize-none rounded-lg px-2 py-1.5 text-lg outline-none"
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="submit" disabled={busy || !question.trim()} className={PRIMARY}>
-            {asking ? "Checking the document…" : "Ask"}
-          </button>
+        <div className="flex items-center gap-2">
           {micType && !recording && (
             <button
               type="button"
               disabled={busy}
               onClick={() => void startRecording()}
-              className={BUTTON}
+              className="btn btn-secondary"
             >
+              {listening ? <Spinner /> : <Mic aria-hidden className="size-5 text-accent" />}
               {listening ? "Listening…" : "Ask by voice"}
             </button>
           )}
@@ -206,13 +222,36 @@ export function QuestionBox({
             <button
               type="button"
               onClick={() => recorderRef.current?.stop()}
-              className={PRIMARY}
+              className="btn btn-primary"
             >
+              <Square aria-hidden className="size-4 fill-current" />
               Stop recording
             </button>
           )}
+          <button type="submit" disabled={busy || !question.trim()} className="btn btn-primary ml-auto">
+            {asking ? <Spinner /> : <SendHorizontal aria-hidden className="size-5" />}
+            {asking ? "Checking the document…" : "Ask"}
+          </button>
         </div>
       </form>
+
+      {answers.length === 0 && (
+        <ul aria-label="Questions you could ask" className="mt-3 flex flex-wrap gap-2">
+          {words.suggestions.map((suggestion) => (
+            <li key={suggestion}>
+              <button
+                type="button"
+                lang={language}
+                disabled={busy}
+                onClick={() => void ask(suggestion)}
+                className="min-h-11 rounded-full border border-line-strong bg-surface px-4 transition-colors hover:border-accent hover:text-accent disabled:opacity-60"
+              >
+                {suggestion}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger">
@@ -220,7 +259,7 @@ export function QuestionBox({
         </p>
       )}
 
-      <ul aria-live="polite" className="mt-3 flex flex-col gap-2 empty:hidden">
+      <ul aria-live="polite" className="mt-5 flex flex-col gap-5 empty:hidden">
         {answers.map((asked) => (
           <AnswerCard key={asked.id} asked={asked} onShowSource={onShowSource} />
         ))}

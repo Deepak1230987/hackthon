@@ -1,5 +1,14 @@
 "use client";
 
+import {
+  ArrowRight,
+  CircleCheck,
+  FileText,
+  LibraryBig,
+  Link2,
+  Upload,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useRef,
@@ -9,6 +18,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { Notice, Skeleton, Spinner } from "@/components/ui";
 import {
   ApiRequestError,
   fetchLibrary,
@@ -21,11 +31,11 @@ import { LANGUAGES } from "@/lib/languages";
 import { formatDate, sourceHost } from "@/lib/provenance";
 import type { DocumentView } from "@/lib/types";
 
-const TABS = [
-  { id: "upload", label: "Upload" },
-  { id: "link", label: "Link" },
-  { id: "library", label: "Library" },
-] as const;
+const TABS: { id: "upload" | "link" | "library"; label: string; icon: LucideIcon; hint: string }[] = [
+  { id: "upload", label: "Upload", icon: Upload, hint: "Choose a PDF to continue." },
+  { id: "link", label: "Link", icon: Link2, hint: "Paste a link to continue." },
+  { id: "library", label: "Library", icon: LibraryBig, hint: "Choose a document to continue." },
+];
 
 type TabId = (typeof TABS)[number]["id"];
 
@@ -130,13 +140,14 @@ export function SourceInput() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6">
+    <form onSubmit={onSubmit} className="flex flex-col gap-5 text-ink">
       <div>
+        <h2 className="section-title mb-3">Which document?</h2>
         <div
           role="tablist"
           aria-label="Where the document comes from"
           onKeyDown={onTabKey}
-          className="mb-4 flex gap-1 rounded-lg border border-line bg-surface p-1"
+          className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-sunken p-1"
         >
           {TABS.map((t) => (
             <button
@@ -151,12 +162,13 @@ export function SourceInput() {
               aria-controls={`panel-${t.id}`}
               tabIndex={tab === t.id ? 0 : -1}
               onClick={() => showTab(t.id)}
-              className={`min-h-11 flex-1 rounded-md px-3 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2 font-medium transition-colors ${
                 tab === t.id
-                  ? "bg-accent-soft text-accent"
+                  ? "bg-surface text-accent shadow-sm"
                   : "text-muted hover:text-ink"
               }`}
             >
+              <t.icon aria-hidden className="size-4 shrink-0" />
               {t.label}
             </button>
           ))}
@@ -176,14 +188,17 @@ export function SourceInput() {
             }}
             onDragLeave={() => setDragging(false)}
             onDrop={onDrop}
-            className={`flex min-h-44 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${
+            className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent ${
               dragging
                 ? "border-accent bg-accent-soft"
-                : "border-line bg-surface hover:border-accent"
+                : file
+                  ? "border-success/50 bg-success-soft"
+                  : "border-line-strong hover:border-accent hover:bg-accent-soft/50"
             }`}
           >
             {file ? (
               <>
+                <FileText aria-hidden className="size-7 text-success" />
                 <span className="font-semibold break-all">{file.name}</span>
                 <span className="text-sm text-muted">
                   {formatSize(file.size)} · Tap to choose a different file
@@ -191,7 +206,8 @@ export function SourceInput() {
               </>
             ) : (
               <>
-                <span className="font-semibold">Choose a government PDF</span>
+                <Upload aria-hidden className="size-7 text-accent" />
+                <span className="text-lg font-semibold">Choose a government PDF</span>
                 <span className="text-sm text-muted">
                   or drag it here. Up to {MAX_PDF_MB} MB.
                 </span>
@@ -231,7 +247,7 @@ export function SourceInput() {
             placeholder="https://"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className="min-h-12 w-full rounded-md border border-line bg-surface px-3 focus-visible:outline-2 focus-visible:outline-accent"
+            className="field"
           />
           <p className="mt-2 text-sm text-muted">
             A link to a PDF, or to a page that links to one. Some government
@@ -247,23 +263,23 @@ export function SourceInput() {
           hidden={tab !== "library"}
         >
           {(library.status === "idle" || library.status === "loading") && (
-            <p role="status" className="text-muted">
-              Loading the library…
-            </p>
+            <div role="status" className="flex flex-col gap-2">
+              <span className="sr-only">Loading the library…</span>
+              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton className="h-16 rounded-xl" />
+              <Skeleton className="h-16 rounded-xl" />
+            </div>
           )}
           {library.status === "failed" && (
-            <div role="alert">
-              <p className="text-danger">
-                We couldn&apos;t load the library.
-              </p>
+            <Notice tone="danger" role="alert" title="We couldn't load the library.">
               <button
                 type="button"
                 onClick={() => void loadLibrary()}
-                className="min-h-11 font-semibold text-accent underline"
+                className="link min-h-11"
               >
                 Try again
               </button>
-            </div>
+            </Notice>
           )}
           {library.status === "ready" && library.documents.length === 0 && (
             <p className="text-muted">
@@ -275,11 +291,11 @@ export function SourceInput() {
               <legend className="mb-2 font-semibold">
                 Official documents we have already fetched
               </legend>
-              <div className="flex flex-col gap-2">
+              <div className="-mx-1 flex max-h-72 flex-col gap-2 overflow-y-auto p-1">
                 {library.documents.map((d) => (
                   <label
                     key={d.id}
-                    className="flex cursor-pointer items-start gap-3 rounded-md border border-line bg-surface p-3 has-checked:border-accent has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-accent"
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-line p-3 transition-colors hover:border-accent has-checked:border-accent has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-accent"
                   >
                     <input
                       type="radio"
@@ -287,13 +303,15 @@ export function SourceInput() {
                       value={d.id}
                       checked={libraryId === d.id}
                       onChange={() => setLibraryId(d.id)}
-                      className="mt-1 accent-accent"
+                      className="peer sr-only"
                     />
+                    <FileText aria-hidden className="size-5 shrink-0 text-muted peer-checked:hidden" />
+                    <CircleCheck aria-hidden className="hidden size-5 shrink-0 text-accent peer-checked:block" />
                     <span className="min-w-0">
-                      <span className="block font-medium break-words">
+                      <span className="block leading-snug font-medium break-words">
                         {d.title ?? sourceHost(d.source_url)}
                       </span>
-                      <span className="block text-sm text-muted break-words">
+                      <span className="mt-0.5 block text-sm text-muted break-words">
                         {[
                           sourceHost(d.source_url),
                           `${d.page_count} ${d.page_count === 1 ? "page" : "pages"}`,
@@ -313,50 +331,63 @@ export function SourceInput() {
       </div>
 
       <fieldset>
-        <legend className="mb-2 text-sm font-semibold">
-          Explain it to me in
-        </legend>
-        <div className="flex flex-wrap gap-2">
+        <legend className="section-title mb-3">Explain it to me in</legend>
+        <div className="grid grid-cols-2 gap-2">
           {LANGUAGES.map((l) => (
             <label
               key={l.code}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-line bg-surface px-4 has-checked:border-accent has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-accent"
+              className="flex min-h-14 cursor-pointer items-center justify-between gap-2 rounded-xl border border-line-strong px-4 py-2 transition-colors hover:border-accent has-checked:border-2 has-checked:border-accent has-checked:bg-accent-soft has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent"
             >
+              <span className="flex flex-col leading-tight">
+                <span lang={l.code} className="text-xl font-semibold">
+                  {l.label}
+                </span>
+                <span className="text-sm text-muted">{l.english}</span>
+              </span>
               <input
                 type="radio"
                 name="language"
                 value={l.code}
                 checked={language === l.code}
                 onChange={() => setLanguage(l.code)}
-                className="accent-accent"
+                className="peer sr-only"
               />
-              <span lang={l.code}>{l.label}</span>
-              <span className="text-sm text-muted">{l.english}</span>
+              <CircleCheck aria-hidden className="hidden size-6 shrink-0 text-accent peer-checked:block" />
             </label>
           ))}
         </div>
       </fieldset>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-md border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger"
-        >
+        <Notice tone="danger" role="alert">
           {error}
-        </p>
+        </Notice>
       )}
 
-      <button
-        type="submit"
-        disabled={!ready || submitting}
-        className="min-h-12 rounded-md bg-accent px-6 font-semibold text-white transition-colors hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-      >
-        {submitting
-          ? tab === "upload"
-            ? "Uploading…"
-            : "Starting…"
-          : "Explain this document"}
-      </button>
+      <div>
+        <button
+          type="submit"
+          disabled={!ready || submitting}
+          className="btn btn-primary btn-lg w-full"
+        >
+          {submitting ? (
+            <>
+              <Spinner />
+              {tab === "upload" ? "Uploading…" : "Starting…"}
+            </>
+          ) : (
+            <>
+              Explain this document
+              <ArrowRight aria-hidden className="size-5" />
+            </>
+          )}
+        </button>
+        {!ready && (
+          <p className="mt-1.5 text-center text-sm text-muted">
+            {TABS.find((t) => t.id === tab)?.hint}
+          </p>
+        )}
+      </div>
 
       <p className="text-sm text-muted">
         Documents are stored so they can be checked and reused, so use public

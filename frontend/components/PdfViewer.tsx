@@ -1,15 +1,18 @@
 "use client";
 
+import { ExternalLink, Minus, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 import { PagePicker } from "@/components/PagePicker";
+import { Notice, Skeleton } from "@/components/ui";
 import { documentFileUrl } from "@/lib/api";
 import type { Clause } from "@/lib/types";
 
 // Copied here by scripts/copy-pdfjs-assets.mjs.
 const ASSETS = "/pdfjs";
 const MAX_PIXEL_RATIO = 2;
+const ZOOMS = [1, 1.25, 1.5, 2, 3];
 
 type RenderedPage = { page: number; width: number; height: number };
 
@@ -41,8 +44,10 @@ export function PdfViewer({
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [width, setWidth] = useState(0);
+  const [fitWidth, setFitWidth] = useState(0);
+  const [zoom, setZoom] = useState(1);
   const [rendered, setRendered] = useState<RenderedPage | null>(null);
+  const width = Math.floor(fitWidth * zoom);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,14 +75,14 @@ export function PdfViewer({
     };
   }, [documentId, attempt]);
 
-  // The stage has no width while the mobile sheet is closed, so nothing renders.
+  // The scroller has no width while the mobile sheet is closed, so nothing renders.
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
     const observer = new ResizeObserver(([entry]) => {
-      setWidth(Math.floor(entry.contentRect.width));
+      setFitWidth(Math.floor(entry.contentRect.width));
     });
-    observer.observe(stage);
+    observer.observe(scroller);
     return () => observer.disconnect();
   }, []);
 
@@ -123,46 +128,83 @@ export function PdfViewer({
 
   useEffect(() => {
     const scroller = scrollerRef.current;
+    const stage = stageRef.current;
     const mark = markRef.current;
-    if (!scroller || !showing) return;
+    if (!scroller || !stage || !showing) return;
     scroller.scrollTop = mark
-      ? mark.offsetTop - (scroller.clientHeight - mark.offsetHeight) / 2
+      ? stage.offsetTop + mark.offsetTop - (scroller.clientHeight - mark.offsetHeight) / 2
       : 0;
-  }, [showing, box]);
+    scroller.scrollLeft = mark
+      ? stage.offsetLeft + mark.offsetLeft - (scroller.clientWidth - mark.offsetWidth) / 2
+      : 0;
+  }, [showing, box, zoom]);
 
   if (failed) {
     return (
-      <div role="alert" className="p-4 text-sm">
-        <p className="text-danger">We couldn&apos;t show this PDF here.</p>
-        <div className="mt-2 flex flex-wrap gap-4">
+      <div className="p-4">
+        <Notice tone="danger" role="alert" title="We couldn't show this PDF here.">
+          <div className="mt-1 flex flex-wrap gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                setFailed(false);
+                setPdf(null);
+                setAttempt((n) => n + 1);
+              }}
+              className="link min-h-11"
+            >
+              Try again
+            </button>
+            <a
+              href={documentFileUrl(documentId)}
+              target="_blank"
+              rel="noreferrer"
+              className="link flex min-h-11 items-center"
+            >
+              Open the PDF in a new tab
+            </a>
+          </div>
+        </Notice>
+      </div>
+    );
+  }
+
+  const zoomIndex = ZOOMS.indexOf(zoom);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Below the page on a phone, where a thumb can reach it. */}
+      <div className="order-last flex flex-wrap items-center justify-between gap-2 border-t border-line bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:order-first lg:border-t-0 lg:border-b lg:pb-2">
+        <PagePicker page={page} pageCount={pageCount} onChange={onPageChange} />
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => {
-              setFailed(false);
-              setPdf(null);
-              setAttempt((n) => n + 1);
-            }}
-            className="min-h-11 font-semibold text-accent underline"
+            aria-label="Zoom out"
+            disabled={zoomIndex <= 0}
+            onClick={() => setZoom(ZOOMS[zoomIndex - 1])}
+            className="btn btn-secondary btn-icon"
           >
-            Try again
+            <Minus aria-hidden className="size-5" />
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={zoomIndex >= ZOOMS.length - 1}
+            onClick={() => setZoom(ZOOMS[zoomIndex + 1])}
+            className="btn btn-secondary btn-icon"
+          >
+            <Plus aria-hidden className="size-5" />
           </button>
           <a
             href={documentFileUrl(documentId)}
             target="_blank"
             rel="noreferrer"
-            className="flex min-h-11 items-center font-semibold text-accent underline"
+            aria-label="Open the PDF in a new tab"
+            className="btn btn-ghost btn-icon hidden sm:inline-flex"
           >
-            Open the PDF in a new tab
+            <ExternalLink aria-hidden className="size-5" />
           </a>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-center border-b border-line p-2">
-        <PagePicker page={page} pageCount={pageCount} onChange={onPageChange} />
       </div>
 
       {clause?.page === page && !clause.bbox && (
@@ -181,20 +223,20 @@ export function PdfViewer({
         ref={scrollerRef}
         // A scrollbar that appeared and vanished would change the width, and so the
         // page height, forever. Keeping its space reserved stops that.
-        className="relative min-h-0 flex-1 overflow-y-auto bg-line/40 [scrollbar-gutter:stable]"
+        className="relative min-h-0 flex-1 overflow-auto bg-sunken p-2 [scrollbar-gutter:stable] sm:p-4"
       >
         <div
           ref={stageRef}
           role="img"
           aria-label={`Page ${page} of the document`}
-          className="relative bg-surface"
-          style={
-            rendered
-              ? { aspectRatio: `${rendered.width} / ${rendered.height}` }
-              : undefined
-          }
+          className="relative mx-auto bg-surface shadow-card"
+          style={{
+            width: width || undefined,
+            aspectRatio: rendered ? `${rendered.width} / ${rendered.height}` : "1 / 1.414",
+          }}
         >
           <div ref={canvasHostRef} />
+          {!rendered && <Skeleton className="absolute inset-4 rounded-sm" />}
           {box && showing && (
             <div
               key={clause?.id}
@@ -211,7 +253,7 @@ export function PdfViewer({
           )}
         </div>
         {!showing && (
-          <p role="status" className="p-4 text-center text-sm text-muted">
+          <p role="status" className="sr-only">
             Loading page {page}…
           </p>
         )}

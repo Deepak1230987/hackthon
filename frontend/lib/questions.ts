@@ -90,6 +90,10 @@ export function optionLabel(option: string, language = "hi"): string {
   return OPTIONS[language]?.[option] ?? option;
 }
 
+export function unitLabel(question: Question, language = "hi"): string | undefined {
+  return question.unit ? UNITS[language]?.[question.unit] : undefined;
+}
+
 // What the citizen is asked to confirm, so a misheard answer is easy to spot.
 export function answerLabel(
   question: Question,
@@ -101,7 +105,7 @@ export function answerLabel(
   if (question.type === "enum") return optionLabel(String(value), language);
   if (question.type === "int" || question.type === "float") {
     const amount = Number(value).toLocaleString("en-IN");
-    const unit = question.unit ? UNITS[language]?.[question.unit] : undefined;
+    const unit = unitLabel(question, language);
     return unit ? `${amount} ${unit}` : amount;
   }
   return String(value);

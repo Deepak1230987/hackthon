@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 import { correctionSummary, traceLines, type Tone } from "@/lib/traceEvents";
@@ -44,14 +45,14 @@ function StepRow({ step }: { step: Step }) {
   const notBuilt = step.implemented === false;
   const status = notBuilt ? NOT_BUILT_STYLE : STATUS_STYLES[step.status];
   return (
-    <li className="relative pb-5 pl-6 last:pb-0">
+    <li className="relative pb-4 pl-6 last:pb-0">
       <span
         aria-hidden
-        className="absolute top-[7px] bottom-[-7px] left-[5px] w-px bg-line [li:last-child>&]:hidden"
+        className="absolute top-[9px] bottom-[-9px] left-[5px] w-px bg-line [li:last-child>&]:hidden"
       />
       <span
         aria-hidden
-        className={`absolute top-[7px] left-0 size-[11px] rounded-full ${status.dot}`}
+        className={`absolute top-[9px] left-0 size-[11px] rounded-full ${status.dot}`}
       />
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="font-medium">
@@ -73,7 +74,7 @@ function StepRow({ step }: { step: Step }) {
         </span>
       </div>
       {step.events.length > 0 && (
-        <ul className="mt-1 flex flex-col gap-0.5 text-sm">
+        <ul className="mt-0.5 flex flex-col gap-0.5 text-sm">
           {traceLines(step.events, step.attempt).map(({ key, text, tone }) => (
             <li key={key} className={`break-words ${TONE_STYLES[tone]}`}>
               {text}
@@ -93,30 +94,33 @@ function SelfCheck({ steps, finished }: { steps: Step[]; finished: boolean }) {
   if (rejected === 0 && unchecked === 0) return null;
   const count = (n: number) => `${n} ${n === 1 ? "claim" : "claims"}`;
   return (
-    <div className="mb-4 flex flex-col gap-1 rounded-md border border-warning/30 bg-highlight-soft px-3 py-2 text-sm">
-      {rejected > 0 && (
-        <p>
-          <span className="font-semibold">
-            We caught {count(rejected)} that didn&apos;t match the document.
-          </span>{" "}
-          {corrected} corrected and passed.{" "}
-          {unresolved > 0 &&
-            (finished
-              ? `${unresolved} left out, because we couldn't verify ${
-                  unresolved === 1 ? "it" : "them"
-                }.`
-              : `${unresolved} still being checked.`)}
-        </p>
-      )}
-      {unchecked > 0 && (
-        <p>
-          <span className="font-semibold">
-            {count(unchecked)} couldn&apos;t be checked,
-          </span>{" "}
-          so {unchecked === 1 ? "it isn't" : "they aren't"} shown. Trying again
-          later may find more.
-        </p>
-      )}
+    <div className="mb-4 flex gap-3 rounded-xl bg-highlight-soft px-3.5 py-3 text-sm">
+      <ShieldCheck aria-hidden className="mt-0.5 size-5 shrink-0 text-highlight-strong" />
+      <div className="flex flex-col gap-1">
+        {rejected > 0 && (
+          <p>
+            <span className="font-semibold">
+              We caught {count(rejected)} that didn&apos;t match the document.
+            </span>{" "}
+            {corrected} corrected and passed.{" "}
+            {unresolved > 0 &&
+              (finished
+                ? `${unresolved} left out, because we couldn't verify ${
+                    unresolved === 1 ? "it" : "them"
+                  }.`
+                : `${unresolved} still being checked.`)}
+          </p>
+        )}
+        {unchecked > 0 && (
+          <p>
+            <span className="font-semibold">
+              {count(unchecked)} couldn&apos;t be checked,
+            </span>{" "}
+            so {unchecked === 1 ? "it isn't" : "they aren't"} shown. Trying again
+            later may find more.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -135,8 +139,8 @@ export function AgentTrace({
   const open = choice ?? !foldable;
   return (
     <section aria-labelledby="trace-heading">
-      <h2 id="trace-heading" className="section-title mb-4">
-        Steps
+      <h2 id="trace-heading" className="section-title mb-3">
+        How we checked it
       </h2>
       <SelfCheck steps={steps} finished={finished} />
       {foldable && (
@@ -144,9 +148,13 @@ export function AgentTrace({
           type="button"
           aria-expanded={open}
           onClick={() => setChoice(!open)}
-          className="mb-3 min-h-11 rounded-md border border-line bg-surface px-3 text-sm font-medium hover:border-accent focus-visible:outline-2 focus-visible:outline-accent"
+          className="btn btn-secondary mb-3 text-sm"
         >
           {open ? "Hide the steps" : `Show all ${steps.length} steps`}
+          <ChevronDown
+            aria-hidden
+            className={`size-4 transition-transform ${open ? "rotate-180" : ""}`}
+          />
         </button>
       )}
       {steps.length === 0 ? (

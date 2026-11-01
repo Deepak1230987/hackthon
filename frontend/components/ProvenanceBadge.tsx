@@ -10,8 +10,8 @@ const METHOD_TEXT: Record<DocumentView["fetch_method"], string> = {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:gap-3">
-      <dt className="shrink-0 text-muted sm:w-24">{label}</dt>
+    <div className="flex flex-col py-2 sm:flex-row sm:gap-3">
+      <dt className="shrink-0 text-muted sm:w-28">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
   );
@@ -21,14 +21,11 @@ export function ProvenanceBadge({ document }: { document: DocumentView }) {
   const host = sourceHost(document.source_url);
 
   return (
-    <section
-      aria-labelledby="provenance-heading"
-      className="rounded-lg border border-line bg-surface p-4"
-    >
-      <h2 id="provenance-heading" className="section-title break-words">
-        {document.title ?? "Document details"}
+    <section aria-labelledby="provenance-heading" className="card p-4 sm:p-5">
+      <h2 id="provenance-heading" className="section-title">
+        Where this document came from
       </h2>
-      <dl className="mt-3 flex flex-col gap-2 text-sm">
+      <dl className="mt-2 divide-y divide-line text-sm">
         {document.issuing_authority && (
           <Row label="Issued by">{document.issuing_authority}</Row>
         )}
@@ -38,7 +35,7 @@ export function ProvenanceBadge({ document }: { document: DocumentView }) {
               href={document.source_url ?? undefined}
               target="_blank"
               rel="noreferrer"
-              className="text-accent underline"
+              className="link inline-flex min-h-11 items-center lg:min-h-0"
             >
               {host}
             </a>
@@ -60,14 +57,14 @@ export function ProvenanceBadge({ document }: { document: DocumentView }) {
             href={documentFileUrl(document.id)}
             target="_blank"
             rel="noreferrer"
-            className="text-accent underline"
+            className="link inline-flex min-h-11 items-center lg:min-h-0"
           >
             Open our stored copy
           </a>
         </Row>
       </dl>
-      <details className="mt-2 text-sm">
-        <summary className="cursor-pointer py-1 text-muted">
+      <details className="mt-1 border-t border-line pt-2 text-sm">
+        <summary className="min-h-11 py-2 text-muted">
           File fingerprint (SHA-256)
         </summary>
         <code className="mt-1 block font-mono text-xs break-all">

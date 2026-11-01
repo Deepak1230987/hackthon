@@ -1,5 +1,4 @@
-const BUTTON =
-  "min-h-11 min-w-11 rounded-md border border-line bg-surface px-3 font-medium hover:border-accent disabled:cursor-not-allowed disabled:text-line disabled:hover:border-line focus-visible:outline-2 focus-visible:outline-accent";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export function PagePicker({
   page,
@@ -11,22 +10,23 @@ export function PagePicker({
   onChange: (page: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         aria-label="Previous page"
         disabled={page <= 1}
         onClick={() => onChange(page - 1)}
-        className={BUTTON}
+        className="btn btn-secondary btn-icon"
       >
-        ‹
+        <ChevronLeft aria-hidden className="size-5" />
       </button>
-      <label className="flex items-center gap-2 text-sm text-muted">
-        Page
+      <label className="flex items-center gap-1.5 text-sm whitespace-nowrap text-muted">
+        <span className="sr-only sm:not-sr-only">Page</span>
         <select
           value={page}
+          aria-label="Page"
           onChange={(e) => onChange(Number(e.target.value))}
-          className="min-h-11 rounded-md border border-line bg-surface px-2 text-ink focus-visible:outline-2 focus-visible:outline-accent"
+          className="min-h-11 rounded-xl border border-line-strong bg-surface px-2 text-base text-ink"
         >
           {Array.from({ length: pageCount }, (_, i) => (
             <option key={i + 1} value={i + 1}>
@@ -41,9 +41,9 @@ export function PagePicker({
         aria-label="Next page"
         disabled={page >= pageCount}
         onClick={() => onChange(page + 1)}
-        className={BUTTON}
+        className="btn btn-secondary btn-icon"
       >
-        ›
+        <ChevronRight aria-hidden className="size-5" />
       </button>
     </div>
   );

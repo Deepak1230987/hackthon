@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Pause, Play, SkipBack, SkipForward, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
+import { SourceChip } from "@/components/ui";
 import { audioUrl } from "@/lib/api";
 import { moreMayCome, nextPlayable } from "@/lib/audioQueue";
 import { languageOf } from "@/lib/languages";
@@ -9,21 +11,33 @@ import type { Claim, ClauseRef, Sentence } from "@/lib/types";
 
 const SPEEDS = [0.75, 1, 1.25, 1.5];
 
-export function AudioPlayer({
+export type Narration = {
+  audioRef: RefObject<HTMLAudioElement | null>;
+  current: number | null;
+  playing: boolean;
+  waitingAfter: number | null;
+  english: boolean;
+  setEnglish: (on: boolean) => void;
+  speed: number;
+  cycleSpeed: () => void;
+  failed: boolean;
+  setFailed: (failed: boolean) => void;
+  setPlaying: (playing: boolean) => void;
+  play: (sentence: Sentence) => void;
+  playNext: (after: number) => void;
+};
+
+// Lives above the tabs, so the voice and its controls carry on whichever one is open.
+export function useNarration({
   sentences,
-  claims,
-  language,
   finished,
-  selectedClauseId,
-  onShowSource,
+  onSentence,
 }: {
   sentences: Sentence[];
-  claims: Claim[];
-  language?: string;
   finished: boolean;
-  selectedClauseId?: string;
-  onShowSource: (source: ClauseRef) => void;
-}) {
+  // Called when a sentence starts, so the document can follow along.
+  onSentence?: (sentence: Sentence) => void;
+}): Narration {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [current, setCurrent] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -41,6 +55,7 @@ export function AudioPlayer({
     setCurrent(sentence.ordinal);
     setWaitingAfter(null);
     setFailed(false);
+    onSentence?.(sentence);
     // A browser can refuse to play. The text stays there to read.
     audio.play().catch(() => setFailed(true));
   };
@@ -68,95 +83,242 @@ export function AudioPlayer({
     const id = setTimeout(() => {
       setCurrent(next.ordinal);
       setWaitingAfter(null);
+      onSentence?.(next);
     }, 0);
     return () => clearTimeout(id);
-  }, [sentences, waitingAfter, speed]);
+  }, [sentences, waitingAfter, speed, onSentence]);
 
-  if (sentences.length === 0) return null;
+  const cycleSpeed = () => {
+    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    setSpeed(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
 
+  return {
+    audioRef,
+    current,
+    playing,
+    waitingAfter,
+    english,
+    setEnglish,
+    speed,
+    cycleSpeed,
+    failed,
+    setFailed,
+    setPlaying,
+    play,
+    playNext,
+  };
+}
+
+function sentenceText(sentence: Sentence, english: boolean): string {
+  const showEnglish = english || sentence.guard_status === "flagged" || !sentence.translated_text;
+  return showEnglish ? sentence.source_text : (sentence.translated_text as string);
+}
+
+const NIGHT_ICON_BUTTON =
+  "hidden size-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15 disabled:opacity-40 sm:flex";
+
+// Stays on screen on every tab: above the navigation on a phone, at the foot of the column on a laptop.
+export function PlayerBar({
+  narration,
+  sentences,
+  language,
+  finished,
+}: {
+  narration: Narration;
+  sentences: Sentence[];
+  language?: string;
+  finished: boolean;
+}) {
+  const { audioRef, current, playing, speed, failed, english } = narration;
+  const words = languageOf(language);
   const ready = sentences.some((s) => s.audio_path);
   const preparing = sentences.filter((s) => s.guard_status === "pending").length;
-  const showSource = (sentence: Sentence) => {
-    const claim = claims.find((c) => sentence.claim_ids.includes(c.id));
-    if (claim?.clauses[0]) onShowSource(claim.clauses[0]);
-  };
+  const speaking = sentences.find((s) => s.ordinal === current);
+  const previous =
+    current === null
+      ? undefined
+      : sentences.findLast(
+          (s) => s.ordinal < current && s.audio_path && s.guard_status === "passed",
+        );
+  const next = current === null ? undefined : nextPlayable(sentences, current);
+
+  return (
+    <section
+      aria-label="Listen to the explanation"
+      className="guilloche on-night fixed inset-x-2 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center gap-2 rounded-2xl p-2 text-white shadow-float sm:gap-1 lg:sticky lg:inset-x-auto lg:bottom-4 lg:mt-6"
+    >
+      <audio
+        ref={audioRef}
+        onPlay={() => narration.setPlaying(true)}
+        onPause={() => narration.setPlaying(false)}
+        onEnded={() => {
+          if (current !== null) narration.playNext(current);
+        }}
+        onError={() => narration.setFailed(true)}
+      />
+
+      <button
+        type="button"
+        aria-label="Previous sentence"
+        disabled={!previous}
+        onClick={() => previous && narration.play(previous)}
+        className={NIGHT_ICON_BUTTON}
+      >
+        <SkipBack aria-hidden className="size-5" />
+      </button>
+      <button
+        type="button"
+        disabled={!ready}
+        aria-label={playing ? "Pause" : current !== null ? "Resume" : "Play"}
+        onClick={() => {
+          const audio = audioRef.current;
+          if (playing) audio?.pause();
+          else if (current !== null && audio?.src) audio.play().catch(() => narration.setFailed(true));
+          else narration.playNext(-1);
+        }}
+        className="flex size-13 shrink-0 items-center justify-center rounded-full bg-highlight text-ink transition-colors hover:bg-white disabled:bg-white/20 disabled:text-white"
+      >
+        {playing ? (
+          <Pause aria-hidden className="size-6 fill-current" />
+        ) : (
+          <Play aria-hidden className="ml-0.5 size-6 fill-current" />
+        )}
+      </button>
+      <button
+        type="button"
+        aria-label="Next sentence"
+        disabled={!next}
+        onClick={() => next && narration.play(next)}
+        className={NIGHT_ICON_BUTTON}
+      >
+        <SkipForward aria-hidden className="size-5" />
+      </button>
+
+      <div className="min-w-0 flex-1 px-1 sm:px-2">
+        {failed ? (
+          <p role="alert" className="flex items-center gap-1.5 text-sm">
+            <TriangleAlert aria-hidden className="size-4 shrink-0 text-highlight" />
+            We couldn&apos;t play this audio. You can read it instead.
+          </p>
+        ) : finished && !ready ? (
+          <p className="text-sm">Audio isn&apos;t available right now, so please read it instead.</p>
+        ) : !ready ? (
+          <p role="status" className="truncate text-sm">
+            Preparing {preparing > 0 ? `${preparing} ${preparing === 1 ? "sentence" : "sentences"}` : "the audio"}…
+          </p>
+        ) : (
+          <p
+            lang={speaking && !english ? language : undefined}
+            className="truncate leading-snug font-medium"
+          >
+            {speaking ? sentenceText(speaking, english) : <span lang={language}>{words.listen}</span>}
+          </p>
+        )}
+        <div aria-hidden className="mt-1.5 flex gap-0.5">
+          {sentences.map((s) => (
+            <span
+              key={s.id}
+              className={`h-1 flex-1 rounded-full ${
+                current !== null && s.ordinal < current
+                  ? "bg-highlight/70"
+                  : s.ordinal === current
+                    ? "bg-highlight"
+                    : "bg-white/25"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        aria-label={`Playback speed ${speed} times. Change speed`}
+        onClick={narration.cycleSpeed}
+        className="min-h-11 min-w-12 shrink-0 rounded-lg px-1 text-sm font-semibold hover:bg-white/15"
+      >
+        {speed}×
+      </button>
+    </section>
+  );
+}
+
+function SpeakingBars() {
+  return (
+    <span aria-hidden className="speaking-bars">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
+export function Transcript({
+  narration,
+  sentences,
+  claims,
+  language,
+  selectedClauseId,
+  onShowSource,
+}: {
+  narration: Narration;
+  sentences: Sentence[];
+  claims: Claim[];
+  language?: string;
+  selectedClauseId?: string;
+  onShowSource: (source: ClauseRef) => void;
+}) {
+  const { current, playing, english } = narration;
+  const words = languageOf(language);
+  const speakingRef = useRef<HTMLLIElement>(null);
+
+  // Keep the voice's place in view, but only while this tab is the one showing.
+  useEffect(() => {
+    const row = speakingRef.current;
+    if (!row || !row.offsetParent) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+  }, [current]);
+
+  const sourceOf = (sentence: Sentence): ClauseRef | undefined =>
+    claims.find((c) => sentence.claim_ids.includes(c.id))?.clauses[0];
 
   return (
     <section aria-labelledby="audio-heading">
-      <h2 id="audio-heading" className="section-title">
-        Listen to the explanation
-      </h2>
-
-      <audio
-        ref={audioRef}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
-          if (current !== null) playNext(current);
-        }}
-        onError={() => setFailed(true)}
-      />
-
-      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-accent-strong p-3">
-        <button
-          type="button"
-          disabled={!ready}
-          onClick={() => {
-            const audio = audioRef.current;
-            if (playing) audio?.pause();
-            else if (current !== null && audio?.src) audio.play().catch(() => setFailed(true));
-            else playNext(-1);
-          }}
-          className="min-h-12 min-w-28 rounded-md bg-highlight px-6 text-lg font-semibold text-ink hover:bg-white disabled:cursor-not-allowed disabled:bg-white/20 disabled:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div>
+          <h2 id="audio-heading" lang={language} className="section-title">
+            {words.explainedHeading}
+          </h2>
+          <p className="text-sm text-muted">Tap a sentence to hear it.</p>
+        </div>
+        <div
+          role="group"
+          aria-label="Language of the text"
+          className="grid grid-cols-2 gap-0.5 rounded-lg bg-sunken p-0.5 text-sm"
         >
-          {playing ? "Pause" : current !== null ? "Resume" : "Play"}
-        </button>
-        <label className="flex items-center gap-2 text-sm text-white">
-          Speed
-          <select
-            value={speed}
-            onChange={(e) => {
-              const next = Number(e.target.value);
-              setSpeed(next);
-              if (audioRef.current) audioRef.current.playbackRate = next;
-            }}
-            className="min-h-11 rounded-md border border-line bg-surface px-2 text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            {SPEEDS.map((value) => (
-              <option key={value} value={value}>
-                {value}×
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          aria-pressed={english}
-          onClick={() => setEnglish((on) => !on)}
-          className="min-h-11 rounded-md border border-white/60 px-3 text-sm font-medium text-white hover:border-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
-          {english ? `Show ${languageOf(language).english}` : "Show English"}
-        </button>
+          {[
+            { on: false, label: words.label, lang: language },
+            { on: true, label: "English", lang: "en" },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              lang={option.lang}
+              aria-pressed={english === option.on}
+              onClick={() => narration.setEnglish(option.on)}
+              className={`min-h-11 rounded-md px-3 font-medium ${
+                english === option.on ? "bg-surface text-accent shadow-sm" : "text-muted hover:text-ink"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {preparing > 0 && !finished && (
-        <p role="status" className="mt-2 text-sm text-muted">
-          Preparing {preparing} {preparing === 1 ? "sentence" : "sentences"}…
-        </p>
-      )}
-      {finished && !ready && (
-        <p className="mt-2 text-sm text-warning">
-          Audio isn&apos;t available right now, so please read the explanation
-          below.
-        </p>
-      )}
-      {failed && (
-        <p role="alert" className="mt-2 text-sm text-warning">
-          We couldn&apos;t play this audio. You can read it below.
-        </p>
-      )}
-
-      <ol className="mt-4 flex flex-col gap-1">
+      <ol className="card mt-3 divide-y divide-line overflow-hidden">
         {sentences
           .filter((s) => s.guard_status !== "pending")
           .map((sentence) => {
@@ -166,22 +328,29 @@ export function AudioPlayer({
             const sourced = claims
               .filter((c) => sentence.claim_ids.includes(c.id))
               .some((c) => c.clauses.some((clause) => clause.id === selectedClauseId));
+            const source = sourceOf(sentence);
             return (
-              <li key={sentence.id}>
+              <li
+                key={sentence.id}
+                ref={speaking ? speakingRef : undefined}
+                className={`scroll-mt-32 scroll-mb-44 lg:scroll-mb-28 ${
+                  speaking
+                    ? "bg-highlight-soft shadow-[inset_4px_0_0_var(--color-highlight-strong)]"
+                    : sourced
+                      ? "bg-highlight-soft/50"
+                      : ""
+                }`}
+              >
                 <button
                   type="button"
                   aria-current={speaking ? "true" : undefined}
                   onClick={() => {
-                    showSource(sentence);
-                    if (sentence.audio_path) play(sentence);
+                    if (sentence.audio_path) narration.play(sentence);
+                    else if (source) onShowSource(source);
                   }}
-                  className={`w-full border-l-4 px-3 py-2 text-left text-lg break-words focus-visible:outline-2 focus-visible:outline-accent ${
-                    speaking || sourced
-                      ? "border-highlight-strong bg-highlight-soft"
-                      : "border-line hover:border-accent"
-                  }`}
+                  className="block w-full px-4 pt-3 pb-0.5 text-left text-lg leading-relaxed break-words transition-colors hover:bg-sunken/50"
                 >
-                  <span lang={showEnglish ? "en" : language} className="block">
+                  <span lang={showEnglish ? "en" : language}>
                     {showEnglish ? sentence.source_text : sentence.translated_text}
                   </span>
                   {flagged && (
@@ -191,6 +360,12 @@ export function AudioPlayer({
                     </span>
                   )}
                 </button>
+                <div className="flex items-center gap-3 px-4 pb-1">
+                  {source && (
+                    <SourceChip page={source.page} onClick={() => onShowSource(source)} />
+                  )}
+                  {speaking && playing && <SpeakingBars />}
+                </div>
               </li>
             );
           })}

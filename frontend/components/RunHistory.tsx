@@ -1,5 +1,6 @@
 "use client";
 
+import { FileText, X } from "lucide-react";
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
 
@@ -19,38 +20,43 @@ export function RunHistory() {
 
   return (
     <section aria-labelledby="history-heading">
-      <h2 id="history-heading" className="section-title">
+      <h2 id="history-heading" className="text-2xl font-bold lg:text-3xl">
         Your documents
       </h2>
-      <p className="mt-1 text-sm text-muted">
+      <p className="mt-1 text-muted">
         Open one to see it and listen again. This list is kept only on this
         device.
       </p>
-      <ul className="mt-3 flex flex-col gap-2">
+      <ul className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {entries.map((entry) => (
           <li
             key={entry.runId}
-            className="flex items-center gap-2 rounded-md border border-line bg-surface hover:border-accent"
+            className="card flex items-start transition-colors hover:border-accent"
           >
             <Link
               href={`/runs/${entry.runId}`}
-              className="min-h-11 min-w-0 flex-1 rounded-md p-3 focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex min-h-11 min-w-0 flex-1 gap-3 rounded-2xl p-4"
             >
-              <span className="block font-medium break-words">
-                {entry.title ?? "Untitled document"}
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent">
+                <FileText aria-hidden className="size-5" />
               </span>
-              <span className="block text-sm text-muted">
-                {formatDateTime(entry.openedAt)}
-                {entry.status === "failed" && " · Stopped"}
+              <span className="min-w-0">
+                <span className="block leading-snug font-semibold break-words">
+                  {entry.title ?? "Untitled document"}
+                </span>
+                <span className="mt-0.5 block text-sm text-muted">
+                  {formatDateTime(entry.openedAt)}
+                  {entry.status === "failed" && " · Stopped"}
+                </span>
               </span>
             </Link>
             <button
               type="button"
               aria-label={`Remove ${entry.title ?? "this document"} from this list`}
               onClick={() => forgetRun(entry.runId)}
-              className="min-h-11 shrink-0 rounded-md px-3 text-sm text-muted underline hover:text-ink focus-visible:outline-2 focus-visible:outline-accent"
+              className="btn btn-ghost btn-icon m-1 shrink-0"
             >
-              Remove
+              <X aria-hidden className="size-5" />
             </button>
           </li>
         ))}

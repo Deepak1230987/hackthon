@@ -1,8 +1,10 @@
 "use client";
 
+import { ChevronRight, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Spinner } from "@/components/ui";
 import { ApiRequestError, submitUrl } from "@/lib/api";
 import { sourceHost } from "@/lib/provenance";
 import type { SourceOption } from "@/lib/types";
@@ -36,7 +38,7 @@ export function SourceOptions({
   };
 
   return (
-    <div className="mt-3">
+    <div className="mt-4">
       <ul className="flex flex-col gap-2">
         {options.map((option) => (
           <li key={option.url}>
@@ -44,14 +46,22 @@ export function SourceOptions({
               type="button"
               disabled={pending !== null}
               onClick={() => void choose(option.url)}
-              className="min-h-11 w-full rounded-md border border-line bg-surface px-3 py-2 text-left text-sm text-ink break-words hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-line-strong bg-surface px-3 py-2 text-left break-words transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="block font-medium">
-                {option.label || option.url.split("/").pop()}
+              <FileText aria-hidden className="size-5 shrink-0 text-accent" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">
+                  {option.label || option.url.split("/").pop()}
+                </span>
+                <span className="block text-sm text-muted">
+                  {sourceHost(option.url)}
+                </span>
               </span>
-              <span className="block text-xs text-muted">
-                {sourceHost(option.url)}
-              </span>
+              {pending === option.url ? (
+                <Spinner className="size-5 shrink-0" />
+              ) : (
+                <ChevronRight aria-hidden className="size-5 shrink-0 text-muted" />
+              )}
             </button>
           </li>
         ))}

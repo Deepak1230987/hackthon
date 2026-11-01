@@ -1,42 +1,64 @@
 "use client";
 
+import {
+  Check,
+  CircleCheck,
+  CircleHelp,
+  CircleX,
+  ChevronRight,
+  Lock,
+  Mic,
+  Square,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Spinner } from "@/components/ui";
 import { ApiRequestError, skipQuestion, speechToAnswer, submitAnswer } from "@/lib/api";
 import { languageOf } from "@/lib/languages";
-import { answerLabel, optionLabel, questionText, typedValue } from "@/lib/questions";
+import { answerLabel, optionLabel, questionText, typedValue, unitLabel } from "@/lib/questions";
 import type { Claim, ClauseRef, Question, Verdict } from "@/lib/types";
 
 const MAX_RECORDING_MS = 30_000;
-const BUTTON =
-  "min-h-11 rounded-md border border-line bg-surface px-4 font-medium hover:border-accent disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-accent";
-const PRIMARY =
-  "min-h-11 rounded-md bg-accent px-5 font-semibold text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:bg-line disabled:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const ANSWER =
+  "btn btn-secondary min-h-14 text-lg";
 
-const OUTCOMES: Record<string, { hi: string; mr: string; en: string; tone: string }> = {
+const OUTCOMES: Record<
+  string,
+  { hi: string; mr: string; en: string; tone: string; iconTone: string; Icon: LucideIcon }
+> = {
   MEETS_STATED_CRITERIA: {
     mr: "या दस्तऐवजात सांगितलेल्या अटी तुम्ही पूर्ण करत असल्याचे दिसते.",
     hi: "आप इस दस्तावेज़ की बताई गई शर्तें पूरी करते दिखते हैं।",
     en: "You appear to meet the criteria this document states.",
-    tone: "border-success bg-success-soft",
+    tone: "border-success/40 bg-success-soft",
+    iconTone: "text-success",
+    Icon: CircleCheck,
   },
   DOES_NOT_MEET: {
     mr: "या दस्तऐवजातील किमान एक अट पूर्ण होत असल्याचे दिसत नाही.",
     hi: "इस दस्तावेज़ की कम से कम एक शर्त पूरी होती नहीं दिखती।",
     en: "You do not appear to meet at least one criterion in this document.",
-    tone: "border-danger bg-danger-soft",
+    tone: "border-danger/40 bg-danger-soft",
+    iconTone: "text-danger",
+    Icon: CircleX,
   },
   NEEDS_INFO: {
     mr: "तुम्ही पात्र आहात की नाही हे सांगण्यासाठी आम्हाला आणखी माहिती हवी आहे.",
     hi: "यह बताने के लिए कि आप पात्र हैं या नहीं, हमें और जानकारी चाहिए।",
     en: "We need more details to tell whether you qualify.",
-    tone: "border-warning bg-warning-soft",
+    tone: "border-warning/40 bg-warning-soft",
+    iconTone: "text-warning",
+    Icon: CircleHelp,
   },
   CANNOT_DETERMINE: {
     mr: "तुम्ही पात्र आहात की नाही हे आम्ही या दस्तऐवजावरून सांगू शकत नाही.",
     hi: "हम इस दस्तावेज़ से यह नहीं बता सकते कि आप पात्र हैं या नहीं।",
     en: "We cannot tell from this document whether you qualify.",
-    tone: "border-warning bg-warning-soft",
+    tone: "border-warning/40 bg-warning-soft",
+    iconTone: "text-warning",
+    Icon: CircleHelp,
   },
 };
 
@@ -167,87 +189,100 @@ function QuestionForm({
 
   if (saved) {
     return (
-      <p role="status" className="mt-2 text-muted">
+      <p role="status" className="mt-3 flex items-center gap-2.5 text-lg font-medium">
+        <Spinner className="size-5 text-accent" />
         Thanks. Checking the rules…
       </p>
     );
   }
 
   const busy = saving || listening || recording;
+  const unit = unitLabel(question, language);
 
   return (
-    <div className="mt-2">
-      <p ref={questionRef} tabIndex={-1} lang={language} className="font-display text-2xl leading-snug outline-none">
+    <div className="mt-1">
+      <p
+        ref={questionRef}
+        tabIndex={-1}
+        lang={language}
+        className="font-display text-3xl leading-snug outline-none"
+      >
         {questionText(question, language)}
       </p>
-      <p className="text-sm text-muted">{question.question_en}</p>
+      <p className="mt-0.5 text-muted">{question.question_en}</p>
 
       {heard ? (
-        <div className="mt-3 rounded-md border border-highlight-strong bg-highlight-soft p-3">
+        <div className="mt-4 rounded-xl bg-highlight-soft p-4">
           <p className="text-sm text-muted">
             We heard: <span lang={language}>{heard.transcript}</span>
           </p>
-          <p className="mt-1 font-semibold">
+          <p className="mt-1 text-lg font-semibold">
             Is this right?{" "}
             <span lang={language}>{answerLabel(question, heard.value, language)}</span>
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" disabled={saving} onClick={() => void send(heard.value)} className={PRIMARY}>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button type="button" disabled={saving} onClick={() => void send(heard.value)} className="btn btn-primary">
+              <Check aria-hidden className="size-5" />
               Yes, that&apos;s right
             </button>
-            <button type="button" disabled={saving} onClick={() => setHeard(null)} className={BUTTON}>
+            <button type="button" disabled={saving} onClick={() => setHeard(null)} className="btn btn-secondary">
               No, try again
             </button>
           </div>
         </div>
       ) : (
-        <div className="mt-3 flex flex-col gap-3">
+        <div className="mt-4 flex flex-col gap-3">
           {question.type === "bool" && (
-            <div className="flex flex-wrap gap-2">
-              <button type="button" disabled={busy} onClick={() => void send(true)} className={BUTTON}>
-                <span lang={language}>{words.yes}</span> / Yes
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" disabled={busy} onClick={() => void send(true)} className={ANSWER}>
+                <Check aria-hidden className="size-5 text-success" />
+                <span>
+                  <span lang={language}>{words.yes}</span> / Yes
+                </span>
               </button>
-              <button type="button" disabled={busy} onClick={() => void send(false)} className={BUTTON}>
-                <span lang={language}>{words.no}</span> / No
+              <button type="button" disabled={busy} onClick={() => void send(false)} className={ANSWER}>
+                <X aria-hidden className="size-5 text-danger" />
+                <span>
+                  <span lang={language}>{words.no}</span> / No
+                </span>
               </button>
             </div>
           )}
 
-          {question.type === "enum" && (
-            <div className="flex flex-wrap gap-2">
-              {(question.options ?? []).length > 12 ? (
-                <select
-                  aria-label={question.question_en}
-                  disabled={busy}
-                  defaultValue=""
-                  onChange={(e) => e.target.value && void send(e.target.value)}
-                  className="min-h-11 w-full rounded-md border border-line bg-surface px-2"
-                >
-                  <option value="" disabled>
-                    Choose
+          {question.type === "enum" &&
+            ((question.options ?? []).length > 12 ? (
+              <select
+                aria-label={question.question_en}
+                disabled={busy}
+                defaultValue=""
+                onChange={(e) => e.target.value && void send(e.target.value)}
+                className="field text-lg"
+              >
+                <option value="" disabled>
+                  Choose
+                </option>
+                {question.options?.map((option) => (
+                  <option key={option} value={option}>
+                    {optionLabel(option, language)}
                   </option>
-                  {question.options?.map((option) => (
-                    <option key={option} value={option}>
-                      {optionLabel(option, language)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                question.options?.map((option) => (
+                ))}
+              </select>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {question.options?.map((option) => (
                   <button
                     key={option}
                     type="button"
                     lang={language}
                     disabled={busy}
                     onClick={() => void send(option)}
-                    className={BUTTON}
+                    className="btn btn-secondary min-h-13 px-2"
                   >
                     {optionLabel(option, language)}
                   </button>
-                ))
-              )}
-            </div>
-          )}
+                ))}
+              </div>
+            ))}
 
           {question.type !== "bool" && question.type !== "enum" && (
             <form
@@ -255,39 +290,57 @@ function QuestionForm({
                 e.preventDefault();
                 if (typed.trim()) void send(typedValue(question, typed));
               }}
-              className="flex flex-wrap gap-2"
+              className="flex gap-2"
             >
-              <input
-                aria-label={question.question_en}
-                inputMode={question.type === "str" ? "text" : "decimal"}
-                autoComplete="off"
-                value={typed}
-                onChange={(e) => setTyped(e.target.value)}
-                className="min-h-11 min-w-0 flex-1 rounded-md border border-line bg-surface px-3 focus-visible:outline-2 focus-visible:outline-accent"
-              />
-              <button type="submit" disabled={busy || !typed.trim()} className={PRIMARY}>
+              <div className="relative min-w-0 flex-1">
+                <input
+                  aria-label={question.question_en}
+                  inputMode={question.type === "str" ? "text" : "decimal"}
+                  autoComplete="off"
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  className={`field min-h-14 text-xl font-medium ${unit ? "pr-20" : ""}`}
+                />
+                {unit && (
+                  <span
+                    lang={language}
+                    className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-muted"
+                  >
+                    {unit}
+                  </span>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={busy || !typed.trim()}
+                className="btn btn-primary min-h-14 shrink-0"
+              >
                 Next
+                <ChevronRight aria-hidden className="size-5" />
               </button>
             </form>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
             {micType && !recording && (
-              <button type="button" disabled={busy} onClick={() => void startRecording()} className={BUTTON}>
+              <button type="button" disabled={busy} onClick={() => void startRecording()} className="btn btn-secondary">
+                {listening ? <Spinner /> : <Mic aria-hidden className="size-5 text-accent" />}
                 {listening ? "Listening to your answer…" : "Answer by voice"}
               </button>
             )}
             {recording && (
               <>
-                <span role="status" className="text-sm font-medium text-accent">
-                  Speak now, then tap stop.
-                </span>
-                <button type="button" onClick={() => recorderRef.current?.stop()} className={PRIMARY}>
+                <button type="button" onClick={() => recorderRef.current?.stop()} className="btn btn-primary">
+                  <Square aria-hidden className="size-4 fill-current" />
                   Stop recording
                 </button>
+                <span role="status" className="flex items-center gap-2 text-sm font-medium text-danger">
+                  <span aria-hidden className="size-2.5 animate-pulse rounded-full bg-danger motion-reduce:animate-none" />
+                  Speak now, then tap stop.
+                </span>
               </>
             )}
-            <button type="button" disabled={busy} onClick={() => void skip()} className={BUTTON}>
+            <button type="button" disabled={busy} onClick={() => void skip()} className="btn btn-ghost">
               I don&apos;t know
             </button>
           </div>
@@ -305,13 +358,21 @@ function QuestionForm({
 
 const OPEN_LINKS = 3;
 
+const LINK_ICONS: Record<string, { Icon: LucideIcon; tone: string }> = {
+  failed: { Icon: X, tone: "text-danger" },
+  met: { Icon: Check, tone: "text-success" },
+  unknown: { Icon: CircleHelp, tone: "text-warning" },
+};
+
 function ClaimLinks({
   title,
+  kind,
   ids,
   claims,
   onShowSource,
 }: {
   title: string;
+  kind: keyof typeof LINK_ICONS;
   ids: string[];
   claims: Claim[];
   onShowSource: (source: ClauseRef) => void;
@@ -320,30 +381,35 @@ function ClaimLinks({
     .map((id) => claims.find((c) => c.id === id))
     .filter((c): c is Claim => Boolean(c?.clauses.length));
   if (found.length === 0) return null;
+  const { Icon, tone } = LINK_ICONS[kind];
   const list = (items: Claim[]) => (
-    <ul className="mt-1 flex flex-col gap-1 text-sm">
+    <ul className="flex flex-col">
       {items.map((claim) => (
         <li key={claim.id}>
           <button
             type="button"
             onClick={() => onShowSource(claim.clauses[0])}
-            className="min-h-11 text-left underline focus-visible:outline-2 focus-visible:outline-accent"
+            className="group flex min-h-11 w-full items-center gap-2.5 rounded-lg py-1.5 text-left"
           >
-            {claim.text}
+            <Icon aria-hidden className={`size-5 shrink-0 ${tone}`} />
+            <span className="min-w-0 flex-1 leading-snug group-hover:underline">{claim.text}</span>
+            <span className="shrink-0 text-sm font-semibold text-accent">
+              p.&nbsp;{claim.clauses[0].page}
+            </span>
           </button>
         </li>
       ))}
     </ul>
   );
   return (
-    <div className="mt-2">
+    <div className="mt-3 border-t border-ink/10 pt-2">
       <h3 className="text-sm font-semibold">
         {title} <span className="font-normal text-muted">· {found.length}</span>
       </h3>
       {list(found.slice(0, OPEN_LINKS))}
       {found.length > OPEN_LINKS && (
-        <details className="mt-1 text-sm">
-          <summary className="min-h-11 cursor-pointer py-2 font-medium text-accent">
+        <details className="text-sm">
+          <summary className="min-h-11 py-2 font-medium text-accent">
             Show {found.length - OPEN_LINKS} more
           </summary>
           {list(found.slice(OPEN_LINKS))}
@@ -374,33 +440,42 @@ export function EligibilityPanel({
     return (
       <section
         aria-labelledby="eligibility-heading"
-        className="rounded-lg border border-accent bg-accent-soft p-4"
+        className="card overflow-hidden border-accent/40 shadow-[inset_0_4px_0_var(--color-accent)]"
       >
-        <h2 id="eligibility-heading" className="text-sm font-semibold text-accent">
-          Check if this applies to you
-        </h2>
-        <QuestionForm key={question.name} runId={runId} question={question} language={language} />
-        <p className="mt-3 text-xs text-muted">
-          Your answers are used only for this check. They aren&apos;t saved, and
-          a voice recording is never kept.
-        </p>
+        <div className="p-4 pt-5 sm:p-6">
+          <h2 id="eligibility-heading" className="eyebrow">
+            Check if this applies to you
+          </h2>
+          <QuestionForm key={question.name} runId={runId} question={question} language={language} />
+          <p className="mt-4 flex gap-2 text-sm text-muted">
+            <Lock aria-hidden className="mt-0.5 size-4 shrink-0" />
+            Your answers are used only for this check. They aren&apos;t saved, and
+            a voice recording is never kept.
+          </p>
+        </div>
       </section>
     );
   }
 
   const outcome = OUTCOMES[verdict!.outcome] ?? OUTCOMES.CANNOT_DETERMINE;
+  const { Icon } = outcome;
   return (
     <section
       aria-labelledby="eligibility-heading"
-      className={`border-l-8 p-4 ${outcome.tone}`}
+      className={`rounded-2xl border p-4 sm:p-5 ${outcome.tone}`}
     >
-      <h2 id="eligibility-heading" lang={language} className="font-display text-3xl leading-snug">
-        {language === "mr" ? outcome.mr : outcome.hi}
-      </h2>
-      <p className="text-sm text-muted">{outcome.en}</p>
-      <ClaimLinks title="Not met" ids={verdict!.failed} claims={claims} onShowSource={onShowSource} />
-      <ClaimLinks title="Met" ids={verdict!.met} claims={claims} onShowSource={onShowSource} />
-      <ClaimLinks title="Couldn't check" ids={verdict!.unknown} claims={claims} onShowSource={onShowSource} />
+      <div className="flex gap-3">
+        <Icon aria-hidden className={`mt-1 size-8 shrink-0 ${outcome.iconTone}`} />
+        <div className="min-w-0">
+          <h2 id="eligibility-heading" lang={language} className="font-display text-2xl leading-snug text-balance sm:text-3xl">
+            {language === "mr" ? outcome.mr : outcome.hi}
+          </h2>
+          <p className="mt-0.5 text-muted">{outcome.en}</p>
+        </div>
+      </div>
+      <ClaimLinks title="Not met" kind="failed" ids={verdict!.failed} claims={claims} onShowSource={onShowSource} />
+      <ClaimLinks title="Met" kind="met" ids={verdict!.met} claims={claims} onShowSource={onShowSource} />
+      <ClaimLinks title="Couldn't check" kind="unknown" ids={verdict!.unknown} claims={claims} onShowSource={onShowSource} />
     </section>
   );
 }
