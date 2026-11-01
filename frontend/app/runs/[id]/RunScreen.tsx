@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { AgentTrace } from "@/components/AgentTrace";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
 import { SourceOptions } from "@/components/SourceOptions";
+import { rememberRun } from "@/lib/history";
 import type { ConnectionState, RunStatus, SourceOption } from "@/lib/types";
 import { isTerminal } from "@/lib/runReducer";
 import { useRunStream } from "@/lib/useRunStream";
@@ -29,6 +31,19 @@ export function RunScreen({ id }: { id: string }) {
   const { view, connection, loaded } = useRunStream(id);
   const notice = CONNECTION_TEXT[connection];
   const options = (view.error?.details?.options ?? []) as SourceOption[];
+  const hasDocument = Boolean(view.document);
+  const title = view.document?.title ?? null;
+
+  // Only once there's a document, so a mistyped link or a failed fetch isn't listed.
+  useEffect(() => {
+    if (!hasDocument) return;
+    rememberRun({
+      runId: id,
+      title,
+      status: view.status,
+      openedAt: new Date().toISOString(),
+    });
+  }, [id, hasDocument, title, view.status]);
 
   const summary = (
     <>

@@ -1,3 +1,4 @@
+import { RunHistory } from "@/components/RunHistory";
 import { SourceInput } from "@/components/SourceInput";
 
 export default function Home() {
@@ -16,6 +17,7 @@ export default function Home() {
         </p>
       </div>
       <SourceInput />
+      <RunHistory />
     </div>
   );
 }
