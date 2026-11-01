@@ -36,6 +36,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8">
           {children}
         </main>
+        <footer className="border-t border-line">
+          <p className="mx-auto w-full max-w-7xl px-4 py-4 text-sm text-muted">
+            Haq explains documents and doesn&apos;t give legal advice. Your
+            answers aren&apos;t saved, and voice recordings are never kept.
+          </p>
+        </footer>
       </body>
     </html>
   );

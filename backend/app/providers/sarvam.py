@@ -84,7 +84,7 @@ class Sarvam:
                 "text": text,
                 "language_code": LANGUAGE_CODES[language],
                 "model": self._settings.tts_model,
-                "speaker": self._settings.tts_voice,
+                "speaker": self._settings.voice_for(language),
                 "output_audio_codec": "mp3",
             },
         )
@@ -93,13 +93,17 @@ class Sarvam:
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 
-    async def stt(self, audio: bytes, content_type: str) -> tuple[str, float | None]:
-        """The transcript and how sure Sarvam is of the language. Neither is stored or logged."""
+    async def stt(self, audio: bytes, content_type: str, language: str) -> tuple[str, float | None]:
+        """The transcript, and how sure Sarvam is of the language. Neither is stored or logged.
+
+        The run's language is sent because detecting it from a word or two, such as "हाँ", is
+        what short answers are worst at.
+        """
         result = await self._post(
             "stt",
             "/speech-to-text",
             files={"file": ("answer", audio, content_type)},
-            data={"model": self._settings.stt_model, "language_code": "unknown"},
+            data={"model": self._settings.stt_model, "language_code": LANGUAGE_CODES[language]},
         )
         return str(result.get("transcript") or "").strip(), result.get("language_probability")
 

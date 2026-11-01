@@ -1,13 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect } from "react";
 
 import { AgentTrace } from "@/components/AgentTrace";
 import { DocumentWorkspace } from "@/components/DocumentWorkspace";
-import { SourceOptions } from "@/components/SourceOptions";
+import { RunError } from "@/components/RunError";
 import { rememberRun } from "@/lib/history";
-import type { ConnectionState, RunStatus, SourceOption } from "@/lib/types";
+import { errorStep } from "@/lib/runErrors";
+import type { ConnectionState, RunStatus } from "@/lib/types";
 import { isTerminal } from "@/lib/runReducer";
 import { useRunStream } from "@/lib/useRunStream";
 
@@ -30,7 +30,6 @@ const DEFAULT_LANGUAGE = "hi";
 export function RunScreen({ id }: { id: string }) {
   const { view, connection, loaded } = useRunStream(id);
   const notice = CONNECTION_TEXT[connection];
-  const options = (view.error?.details?.options ?? []) as SourceOption[];
   const hasDocument = Boolean(view.document);
   const title = view.document?.title ?? null;
 
@@ -49,7 +48,11 @@ export function RunScreen({ id }: { id: string }) {
     <>
       <div>
         <h1 className="text-2xl font-semibold">
-          {loaded ? STATUS_TEXT[view.status] : "Loading your run…"}
+          {!loaded
+            ? "Loading your run…"
+            : view.error
+              ? errorStep(view.error).title
+              : STATUS_TEXT[view.status]}
         </h1>
         {notice && (
           <p role="status" className="mt-2 text-sm text-warning">
@@ -59,26 +62,12 @@ export function RunScreen({ id }: { id: string }) {
       </div>
 
       {view.error && (
-        <div
-          role="alert"
-          className="rounded-md border border-danger/30 bg-danger-soft px-4 py-3"
-        >
-          <p className="text-danger">{view.error.message}</p>
-          {view.error.code === "MULTIPLE_PDFS" && options.length > 0 && (
-            <SourceOptions
-              options={options}
-              language={view.language ?? DEFAULT_LANGUAGE}
-            />
-          )}
-          <Link
-            href="/"
-            className="mt-2 inline-block font-semibold text-danger underline"
-          >
-            Try another document
-          </Link>
-        </div>
+        <RunError
+          error={view.error}
+          sourceUrl={view.document?.source_url}
+          language={view.language ?? DEFAULT_LANGUAGE}
+        />
       )}
-
     </>
   );
 

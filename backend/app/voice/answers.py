@@ -8,8 +8,8 @@ from app.documents.normalize import normalize
 from app.eligibility.fields import FieldDef, InvalidAnswer, validate_answer
 from app.prompts import as_data, load
 
-_YES = {"yes", "yeah", "हाँ", "हां", "जी हाँ", "जी हां", "हा", "जी", "ha", "haan", "hyes"}
-_NO = {"no", "nope", "नहीं", "नही", "जी नहीं", "जी नही", "nahi", "nahin"}
+_YES = {"yes", "yeah", "हाँ", "हां", "जी हाँ", "जी हां", "हा", "जी", "ha", "haan", "हो", "होय", "जी हो"}
+_NO = {"no", "nope", "नहीं", "नही", "जी नहीं", "जी नही", "nahi", "nahin", "नाही", "जी नाही"}
 _PUNCTUATION = re.compile(r"[।॥.,!?\"']")
 
 

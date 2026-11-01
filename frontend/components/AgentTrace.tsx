@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import { correctionSummary, traceLines, type Tone } from "@/lib/traceEvents";
 import type { Step, StepStatus } from "@/lib/types";
 
@@ -122,20 +126,36 @@ export function AgentTrace({
   steps: Step[];
   finished?: boolean;
 }) {
+  // A finished run's steps are long on a phone, so they fold away and leave the
+  // self-check above them. While it runs they stay open to watch.
+  const [choice, setChoice] = useState<boolean | null>(null);
+  const open = choice ?? !finished;
   return (
     <section aria-labelledby="trace-heading">
       <h2 id="trace-heading" className="mb-4 text-lg font-semibold">
         Steps
       </h2>
       <SelfCheck steps={steps} finished={finished} />
+      {finished && steps.length > 0 && (
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setChoice(!open)}
+          className="mb-3 min-h-11 rounded-md border border-line bg-surface px-3 text-sm font-medium hover:border-accent focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {open ? "Hide the steps" : `Show all ${steps.length} steps`}
+        </button>
+      )}
       {steps.length === 0 ? (
         <p className="text-muted">Waiting for the first step…</p>
       ) : (
-        <ol aria-live="polite" aria-relevant="additions">
-          {steps.map((step) => (
-            <StepRow key={step.id} step={step} />
-          ))}
-        </ol>
+        open && (
+          <ol aria-live="polite" aria-relevant="additions">
+            {steps.map((step) => (
+              <StepRow key={step.id} step={step} />
+            ))}
+          </ol>
+        )
       )}
     </section>
   );

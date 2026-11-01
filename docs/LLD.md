@@ -432,7 +432,7 @@ The numeric guard runs first and is free. The meaning guard is called only for s
 
 ### 9.4 STT
 
-Accepts WebM and MP4, max 30 seconds and 2 MB server-side. Calls `saaras:v4` with `language_code=unknown`. Empty transcripts or low `language_probability` return a re-ask. The audio is never stored or logged.
+Accepts WebM and MP4, max 30 seconds and 2 MB server-side. Calls `saaras:v4` with the run's language, because detecting a language from a word or two is what short answers are worst at. Empty transcripts or low `language_probability` return a re-ask. The audio is never stored or logged.
 
 ## 10. Provider gateway
 
@@ -525,7 +525,7 @@ Five new runs per IP per 10 minutes, and 20 STT calls per run. `client_hash` is 
 
 ### 12.5 Run event contract
 
-`language` in every request is one of `hi`, `bn`, `mr` or `en`.
+`language` in every request is one of `hi`, `bn`, `mr` or `en`. The screens offer Hindi and Marathi. Marathi was chosen as the second language because it shares Hindi's script and font.
 
 The frontend builds the trace only from these events, so a refresh, an SSE replay and polling all give the same view. `seq` is the SSE `id`. `EventSource` drops named events it hasn't subscribed to, so any new type must also be added to `RUN_EVENT_TYPES` in `frontend/lib/types.ts`.
 

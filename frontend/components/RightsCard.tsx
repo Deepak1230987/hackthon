@@ -124,6 +124,13 @@ export function RightsCard({
         })}
       </div>
 
+      {finished && usable.length === 0 && (
+        <p className="mt-3 text-sm text-muted">
+          We couldn&apos;t confirm any rights from this document. You can still
+          read its clauses below.
+        </p>
+      )}
+
       {finished && missing.length > 0 && (
         <div className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm">
           <h3 className="font-semibold">
