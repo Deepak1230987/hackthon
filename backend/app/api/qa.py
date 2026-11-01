@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import uuid
 
 import httpx
@@ -47,6 +48,13 @@ ANSWER_FEEDBACK = (
     " cited, or the quote didn't contain a number from the answer. Copy the quote character for"
     " character from one clause, and cite that clause.\n"
 )
+NOT_ENGLISH_FEEDBACK = (
+    "\nYour last reply failed an automatic check: the answer wasn't in English. Write the answer"
+    " in English even though the question isn't. It is translated for the citizen afterwards.\n"
+)
+# An answer must be English to be checked against the clauses and then translated. Models tend
+# to answer in the language of the question, whatever the prompt says.
+_INDIC_SCRIPT = re.compile(r"[\u0900-\u0DFF]")
 
 ABSTENTION = "This document does not say."
 # Fixed, so the most common honest answer costs no call and never varies.
@@ -137,15 +145,16 @@ async def _verified_answer(
             else []
         )
         answer = result.answer.strip()
+        english = not _INDIC_SCRIPT.search(answer)
         problem = check_claim(
             answer, result.quote, [CitedClause(clause.norm_text, clause.extraction) for clause in cited]
         )
-        if problem is None:
+        if english and problem is None:
             break
         # A correct answer with an imperfect quote mustn't become "the document doesn't say".
         if attempt == MAX_ANSWER_ATTEMPTS - 1:
             return None
-        feedback = ANSWER_FEEDBACK
+        feedback = ANSWER_FEEDBACK if english else NOT_ENGLISH_FEEDBACK
     prompt = entailment_prompt([(answer, [clause.text for clause in cited])])
     verdicts = (await deps.gateway.structured("entail", prompt, EntailmentResult, budget)).verdicts
     # An answer the model skipped hasn't been shown to be supported.

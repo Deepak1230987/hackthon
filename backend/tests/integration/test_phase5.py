@@ -360,3 +360,23 @@ async def test_clauses_beside_a_match_reach_the_model(client, gateway):
     await ask(client, run_id)
     sent = gateway.prompts["qa"][-1].count("Rule number")
     assert sent > 12
+
+
+async def test_an_answer_not_in_english_is_asked_for_again(client, gateway):
+    run_id = await finished_run(client, "hindi answer")
+    gateway.replies["qa"] = [grounded(answer="हर छात्र को Rs. 12,000 मिलते हैं।"), grounded()]
+    gateway.sarvam.translations[ANSWER] = HINDI
+    before = len(gateway.prompts.get("qa", []))
+    body = (await ask(client, run_id, "मुझे कितना मिलेगा?")).json()
+    assert body["abstained"] is False
+    assert body["answer_en"] == ANSWER
+    assert body["answer"] == HINDI
+    assert "wasn't in English" in gateway.prompts["qa"][before + 1]
+
+
+async def test_an_answer_never_in_english_is_not_shown(client, gateway):
+    run_id = await finished_run(client, "always hindi")
+    hindi = grounded(answer="हर छात्र को Rs. 12,000 मिलते हैं।")
+    gateway.replies["qa"] = [hindi, hindi]
+    body = (await ask(client, run_id, "मुझे कितना मिलेगा?")).json()
+    assert body["abstained"] is True
