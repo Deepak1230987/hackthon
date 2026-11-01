@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     run_timeout_s: int = 420
     max_pdf_mb: int = 50
     max_pages: int = 200
+    max_runs_per_ip: int = 5
+    run_limit_window_s: int = 600
+    max_questions_per_run: int = 20
+    max_stt_per_run: int = 20
     profile_ttl_s: int = 3600
     cross_provider_verify: bool = False
 

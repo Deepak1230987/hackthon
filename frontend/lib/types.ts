@@ -156,6 +156,19 @@ export type ParsedSpeech = {
   confidence: number;
 };
 
+// POST /v1/runs/{id}/qa. abstained means the document doesn't support an answer.
+export type QaAnswer = {
+  answer: string;
+  answer_en: string;
+  language: string;
+  abstained: boolean;
+  citations: ClauseRef[];
+  authority: string | null;
+  audio_path: string | null;
+};
+
+export type PageRange = { from: number; to: number };
+
 // One choice in details.options of a MULTIPLE_PDFS error.
 export type SourceOption = {
   url: string;
@@ -167,6 +180,8 @@ export type RunSnapshot = {
   id: string;
   status: RunStatus;
   language?: string;
+  queue_position?: number | null;
+  page_range?: PageRange | null;
   document?: DocumentView | null;
   error?: ApiError | null;
   claims?: Claim[];
@@ -192,6 +207,8 @@ export type Step = {
 export type RunView = {
   status: RunStatus;
   language?: string;
+  queuePosition?: number;
+  pageRange?: PageRange;
   document?: DocumentView;
   clausesReady: boolean;
   claims: Claim[];

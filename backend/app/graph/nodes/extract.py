@@ -5,8 +5,9 @@ from sqlalchemy import select, update
 
 from app.claims.schemas import CLAIM_FIELDS, ExtractionResult, RepairResult
 from app.db.models import Claim, Clause, Document
+from app.documents.pages import in_page_range, page_range
 from app.graph.deps import Deps, RunFailed
-from app.graph.state import RunState
+from app.graph.state import RunState, SourceRequest
 from app.prompts import as_data, load
 from app.providers.budget import Budget, BudgetExhausted
 from app.providers.gateway import ProviderUnavailable
@@ -24,12 +25,15 @@ FIELD_QUERIES = {
 }
 
 
-async def _document_clauses(document_id: uuid.UUID, deps: Deps) -> list[Clause]:
+async def _document_clauses(document_id: uuid.UUID, deps: Deps, source: SourceRequest) -> list[Clause]:
     """Short documents go in whole. Long ones send what is closest to each field, plus headings."""
+    scope = (Clause.document_id == document_id, in_page_range(Clause.page, source))
+    window = page_range(source)
     async with deps.sessions() as session:
         document = await session.get(Document, document_id)
-        everything = select(Clause).where(Clause.document_id == document_id).order_by(Clause.ordinal)
-        if document.page_count <= FULL_TEXT_MAX_PAGES:
+        everything = select(Clause).where(*scope).order_by(Clause.ordinal)
+        pages = window[1] - window[0] + 1 if window else document.page_count
+        if pages <= FULL_TEXT_MAX_PAGES:
             return (await session.scalars(everything)).all()
 
         chosen = {
@@ -48,7 +52,7 @@ async def _document_clauses(document_id: uuid.UUID, deps: Deps) -> list[Clause]:
             for vector in vectors:
                 nearest = await session.scalars(
                     select(Clause)
-                    .where(Clause.document_id == document_id, Clause.embedding.is_not(None))
+                    .where(*scope, Clause.embedding.is_not(None))
                     .order_by(Clause.embedding.cosine_distance(vector))
                     .limit(TOP_CLAUSES_PER_FIELD)
                 )
@@ -74,7 +78,7 @@ async def extract(state: RunState, deps: Deps) -> dict | None:
     budget = Budget(deps.sessions, deps.events, run_id, deps.settings.max_llm_calls)
     async with deps.sessions() as session:
         existing = (await session.scalars(select(Claim).where(Claim.run_id == run_uuid))).all()
-    clauses = await _document_clauses(uuid.UUID(state["document_id"]), deps)
+    clauses = await _document_clauses(uuid.UUID(state["document_id"]), deps, state["source"])
     by_ordinal = {clause.ordinal: clause.id for clause in clauses}
 
     if existing:

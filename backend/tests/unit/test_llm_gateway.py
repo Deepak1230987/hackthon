@@ -64,6 +64,54 @@ async def test_returns_validated_reply_and_charges_once():
     assert budget.calls == 1
 
 
+def cross_checked(cross: bool, openai_status: int = 200):
+    used = []
+
+    def gemini(request):
+        used.append("gemini")
+        return gemini_reply('{"value": 1}')
+
+    def openai(request):
+        used.append("openai")
+        return (
+            openai_reply('{"value": 2}')
+            if openai_status == 200
+            else httpx.Response(openai_status, json={})
+        )
+
+    gateway = Gateway(
+        Settings(
+            _env_file=None,
+            database_url="postgresql://x",
+            openai_api_key="o",
+            llm_primary_model="gpt-main",
+            llm_fallback_model="gemini-backup",
+            cross_provider_verify=cross,
+        )
+    )
+    gateway._client = httpx.AsyncClient(transport=httpx.MockTransport(gemini))
+    gateway._openai = httpx.AsyncClient(transport=httpx.MockTransport(openai))
+    return gateway, used
+
+
+async def test_with_the_flag_on_entailment_goes_to_the_other_provider_first():
+    gateway, used = cross_checked(True)
+    assert (await gateway.structured("entail", "p", Answer, FakeBudget())).value == 1
+    assert used == ["gemini"]
+
+
+async def test_with_the_flag_on_other_tasks_keep_the_primary():
+    gateway, used = cross_checked(True)
+    assert (await gateway.structured("extract", "p", Answer, FakeBudget())).value == 2
+    assert used == ["openai"]
+
+
+async def test_with_the_flag_off_entailment_uses_the_primary():
+    gateway, used = cross_checked(False)
+    assert (await gateway.structured("entail", "p", Answer, FakeBudget())).value == 2
+    assert used == ["openai"]
+
+
 async def test_triage_uses_the_fast_model_and_other_tasks_do_not():
     used = []
 

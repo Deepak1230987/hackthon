@@ -16,6 +16,7 @@ import { EligibilityPanel } from "@/components/EligibilityPanel";
 import { PagePicker } from "@/components/PagePicker";
 import { PdfViewer } from "@/components/PdfViewer";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
+import { QuestionBox } from "@/components/QuestionBox";
 import { RightsCard } from "@/components/RightsCard";
 import { ApiRequestError, fetchClauses } from "@/lib/api";
 import { languageOf } from "@/lib/languages";
@@ -56,6 +57,7 @@ export function DocumentWorkspace({
   verdict,
   sentences,
   language,
+  firstPage,
   trace,
   children,
 }: {
@@ -69,6 +71,8 @@ export function DocumentWorkspace({
   verdict?: Verdict;
   sentences: Sentence[];
   language?: string;
+  // Where a run over part of a long document starts.
+  firstPage?: number;
   trace: ReactNode;
   children: ReactNode;
 }) {
@@ -80,7 +84,7 @@ export function DocumentWorkspace({
   const [data, setData] = useState<DocumentClauses | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(firstPage ?? 1);
   // An id, because a claim can be clicked before the clause text has loaded.
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const selected = useMemo(
@@ -204,6 +208,9 @@ export function DocumentWorkspace({
             This is not legal advice. Confirm with the issuing office before you
             rely on it.
           </p>
+        )}
+        {(status === "completed" || status === "partial") && (
+          <QuestionBox runId={runId} language={language} onShowSource={showSource} />
         )}
         <RightsCard
           status={status}

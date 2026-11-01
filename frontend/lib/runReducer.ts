@@ -131,6 +131,7 @@ function applyEvent(state: RunState, event: RunEvent): RunState {
     view.status = event.payload.status as RunStatus;
     if (event.payload.error) view.error = event.payload.error as ApiError;
     if (view.status !== "waiting_input") view.question = undefined;
+    if (view.status !== "queued") view.queuePosition = undefined;
   }
   if (event.type === "segment_done") view.clausesReady = true;
   return { view, seen, maxSeq: Math.max(state.maxSeq, event.seq) };
@@ -146,6 +147,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       const view = {
         ...next.view,
         language: action.run.language ?? next.view.language,
+        pageRange: action.run.page_range ?? next.view.pageRange,
         document: action.run.document ?? next.view.document,
         claims: mergeClaims(next.view.claims, action.run.claims ?? []),
         verdict: action.run.verdict ?? next.view.verdict,
@@ -156,6 +158,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
       const latest = Math.max(-1, ...action.run.events.map((e) => e.seq));
       if (latest >= state.maxSeq) {
         view.status = action.run.status;
+        view.queuePosition = action.run.queue_position ?? undefined;
         view.error = action.run.error ?? view.error;
         view.notStated = action.run.not_stated ?? view.notStated;
         view.question = action.run.question ?? undefined;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { PageRangeForm } from "@/components/PageRangeForm";
 import { SourceOptions } from "@/components/SourceOptions";
 import { ApiRequestError, submitUrl } from "@/lib/api";
 import { errorStep } from "@/lib/runErrors";
@@ -11,10 +12,12 @@ import type { ApiError, SourceOption } from "@/lib/types";
 
 // What a run that stopped offers next, by error code.
 export function RunError({
+  runId,
   error,
   sourceUrl,
   language,
 }: {
+  runId: string;
   error: ApiError;
   sourceUrl?: string | null;
   language: string;
@@ -24,7 +27,11 @@ export function RunError({
   const [retryError, setRetryError] = useState<string | null>(null);
   const { next } = errorStep(error);
   const options = (error.details?.options ?? []) as SourceOption[];
-  const choosing = next === "choose" && options.length > 0;
+  const pageCount = error.details?.page_count;
+  const maxPages = error.details?.max_pages;
+  const hasRange =
+    next === "range" && typeof pageCount === "number" && typeof maxPages === "number";
+  const choosing = hasRange || (next === "choose" && options.length > 0);
 
   const retry = async () => {
     if (!sourceUrl) return;
@@ -48,7 +55,8 @@ export function RunError({
       }`}
     >
       <p className={choosing ? "" : "text-danger"}>{error.message}</p>
-      {choosing && <SourceOptions options={options} language={language} />}
+      {next === "choose" && choosing && <SourceOptions options={options} language={language} />}
+      {hasRange && <PageRangeForm runId={runId} pageCount={pageCount} maxPages={maxPages} />}
       {retryError && <p className="mt-2 text-sm text-danger">{retryError}</p>}
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
         {next === "retry" && sourceUrl && (

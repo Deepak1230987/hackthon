@@ -4,11 +4,10 @@ import uuid
 from sqlalchemy import exists, select, update
 
 from app.claims.schemas import EntailmentResult
-from app.claims.verifier import CitedClause, check_claim
+from app.claims.verifier import CitedClause, check_claim, entailment_prompt
 from app.db.models import Claim, Clause
 from app.graph.deps import Deps
 from app.graph.state import RunState
-from app.prompts import as_data, load
 from app.providers.budget import Budget, BudgetExhausted
 from app.providers.gateway import ProviderUnavailable
 
@@ -76,13 +75,9 @@ async def verify(state: RunState, deps: Deps) -> dict | None:
 async def _judge_batch(
     run_id: str, batch: list[Claim], clauses: dict, budget: Budget, deps: Deps
 ) -> bool:
-    items = "\n\n".join(
-        f'<claim index="{index}">\n{as_data(claim.text)}\n</claim>\n<source index="{index}">\n'
-        + "\n".join(as_data(clauses[clause_id].text) for clause_id in claim.clause_ids)
-        + "\n</source>"
-        for index, claim in enumerate(batch)
+    prompt = entailment_prompt(
+        [(claim.text, [clauses[clause_id].text for clause_id in claim.clause_ids]) for claim in batch]
     )
-    prompt = load("entail").replace("{claims}", items)
     try:
         result = await deps.gateway.structured("entail", prompt, EntailmentResult, budget)
     except (ProviderUnavailable, BudgetExhausted) as exc:

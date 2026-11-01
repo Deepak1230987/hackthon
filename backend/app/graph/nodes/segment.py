@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Clause, DocumentPage
 from app.documents.normalize import detect_language, normalize
+from app.documents.pages import in_page_range, page_range
 from app.documents.segment import find_furniture, segment_page
 from app.graph.deps import Deps, RunFailed
 from app.graph.state import RunState
@@ -33,7 +34,12 @@ async def segment(state: RunState, deps: Deps) -> dict:
             )
         ).all()
         usable = [page for page in pages if page.status == "done"]
-        failed_pages = [page.page for page in pages if page.status == "failed"]
+        window = page_range(state["source"])
+        failed_pages = [
+            page.page
+            for page in pages
+            if page.status == "failed" and (window is None or window[0] <= page.page <= window[1])
+        ]
         pending = [page for page in usable if not page.segmented]
 
         if pending:
@@ -72,7 +78,9 @@ async def segment(state: RunState, deps: Deps) -> dict:
                 .values(segmented=True)
             )
         total = await session.scalar(
-            select(func.count()).select_from(Clause).where(Clause.document_id == document_id)
+            select(func.count())
+            .select_from(Clause)
+            .where(Clause.document_id == document_id, in_page_range(Clause.page, state["source"]))
         )
         await session.commit()
 

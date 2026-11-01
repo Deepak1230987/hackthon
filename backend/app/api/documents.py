@@ -7,8 +7,9 @@ from sqlalchemy import select
 from starlette.datastructures import UploadFile
 
 from app.acquisition.ssrf import UrlRejected, check_url
+from app.api import limits
 from app.api.errors import ApiError
-from app.db.models import Clause, Document, DocumentPage, Run
+from app.db.models import Clause, Document, DocumentPage
 
 router = APIRouter(prefix="/v1")
 
@@ -19,6 +20,7 @@ CHUNK_BYTES = 1024 * 1024
 @router.post("/documents", status_code=202)
 async def create_document_run(request: Request) -> dict:
     services = request.app.state.services
+    await limits.check_run_limit(request)
     if request.headers.get("content-type", "").startswith("multipart/form-data"):
         form = await request.form()
         file, language = form.get("file"), form.get("language")
@@ -42,14 +44,12 @@ async def create_document_run(request: Request) -> dict:
             raise ApiError(exc.code, exc.message) from exc
         source = {"url": url}
 
-    async with services.deps.sessions() as session:
-        run = Run(language=language, status="queued", source=source)
-        session.add(run)
-        await session.commit()
-        run_id = str(run.id)
-
-    services.runner.start(run_id, language, source)
-    return {"run_id": run_id}
+    try:
+        return {"run_id": await limits.new_run(request, language, source)}
+    except ApiError:
+        if "upload_path" in source:
+            Path(source["upload_path"]).unlink(missing_ok=True)
+        raise
 
 
 @router.get("/documents/{document_id}/file")

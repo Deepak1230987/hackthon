@@ -5,6 +5,7 @@ from rapidfuzz.fuzz import partial_ratio
 
 from app.claims import numbers
 from app.documents.normalize import normalize
+from app.prompts import as_data, load
 
 OCR_MATCH_THRESHOLD = 92
 MIN_QUOTE_CHARS = 8
@@ -15,6 +16,17 @@ _DASHES = re.compile(r"[‐-―−]")
 class CitedClause:
     norm_text: str
     extraction: str  # native | ocr
+
+
+def entailment_prompt(items: list[tuple[str, list[str]]]) -> str:
+    """Each item is a claim and the text of the clauses it cites."""
+    claims = "\n\n".join(
+        f'<claim index="{index}">\n{as_data(claim)}\n</claim>\n<source index="{index}">\n'
+        + "\n".join(as_data(text) for text in sources)
+        + "\n</source>"
+        for index, (claim, sources) in enumerate(items)
+    )
+    return load("entail").replace("{claims}", claims)
 
 
 def _comparable(text: str) -> str:

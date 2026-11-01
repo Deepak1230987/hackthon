@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Response
 from sqlalchemy import select
 from starlette.datastructures import UploadFile
 
+from app.api import limits
 from app.api.errors import ApiError
 from app.db.models import Rule, Run
 from app.eligibility.fields import FIELDS
@@ -37,6 +38,24 @@ async def get_audio(name: str, request: Request) -> Response:
     )
 
 
+async def read_recording(audio: UploadFile) -> tuple[bytes, str]:
+    content_type = (audio.content_type or "").split(";")[0].strip().lower()
+    if not content_type.startswith(AUDIO_TYPES):
+        raise ApiError("INVALID_AUDIO", "That recording format isn't supported.", action="type")
+    content = await audio.read(MAX_AUDIO_BYTES + 1)
+    if len(content) > MAX_AUDIO_BYTES:
+        raise ApiError("AUDIO_TOO_LARGE", "That recording is too long.", status=413, action="reask")
+    return content, content_type
+
+
+async def use_stt_allowance(request: Request, run_id: uuid.UUID) -> None:
+    limit = request.app.state.services.settings.max_stt_per_run
+    if not await limits.use_allowance(request, run_id, Run.stt_calls, limit):
+        raise ApiError(
+            "SPEECH_LIMIT", "That's the most recordings for this document. Please type it.", status=429, action="type"
+        )
+
+
 @router.post("/runs/{run_id}/stt")
 async def speech_to_answer(run_id: uuid.UUID, request: Request) -> dict:
     """The transcript and its reading, for the citizen to confirm. Nothing here is saved."""
@@ -45,12 +64,7 @@ async def speech_to_answer(run_id: uuid.UUID, request: Request) -> dict:
     audio, field_name = form.get("audio"), form.get("field")
     if not isinstance(audio, UploadFile) or not isinstance(field_name, str):
         raise ApiError("INVALID_REQUEST", "Send a recording and the question it answers.")
-    content_type = (audio.content_type or "").split(";")[0].strip().lower()
-    if not content_type.startswith(AUDIO_TYPES):
-        raise ApiError("INVALID_AUDIO", "That recording format isn't supported.", action="type")
-    content = await audio.read(MAX_AUDIO_BYTES + 1)
-    if len(content) > MAX_AUDIO_BYTES:
-        raise ApiError("AUDIO_TOO_LARGE", "That recording is too long.", status=413, action="reask")
+    content, content_type = await read_recording(audio)
 
     async with deps.sessions() as session:
         run = await session.get(Run, run_id)
@@ -62,6 +76,7 @@ async def speech_to_answer(run_id: uuid.UUID, request: Request) -> dict:
         allowed = {name for fields in required for name in fields}
     if field_name not in FIELDS or field_name not in allowed:
         raise ApiError("INVALID_ANSWER", "This document doesn't ask about that.")
+    await use_stt_allowance(request, run_id)
 
     try:
         transcript, language_probability = await deps.gateway.sarvam.stt(

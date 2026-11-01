@@ -6,6 +6,8 @@ class SourceRequest(TypedDict):
     sha256: NotRequired[str]
     url: NotRequired[str]
     document_id: NotRequired[str]
+    page_from: NotRequired[int]
+    page_to: NotRequired[int]
 
 
 class RunState(TypedDict):

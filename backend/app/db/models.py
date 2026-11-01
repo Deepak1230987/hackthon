@@ -96,6 +96,8 @@ class Run(Base):
     error_code: Mapped[str | None] = mapped_column(Text)
     llm_calls: Mapped[int] = mapped_column(Integer, nullable=False, server_default=literal(0))
     sarvam_chars: Mapped[int] = mapped_column(Integer, nullable=False, server_default=literal(0))
+    qa_calls: Mapped[int] = mapped_column(Integer, nullable=False, server_default=literal(0))
+    stt_calls: Mapped[int] = mapped_column(Integer, nullable=False, server_default=literal(0))
     client_hash: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

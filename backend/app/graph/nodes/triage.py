@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from app.claims.schemas import TriageResult
 from app.db.models import Clause, Document
+from app.documents.pages import in_page_range
 from app.graph.deps import Deps, RunFailed
 from app.graph.state import RunState
 from app.prompts import as_data, load
@@ -28,7 +29,7 @@ async def triage(state: RunState, deps: Deps) -> None:
     async with deps.sessions() as session:
         texts = await session.scalars(
             select(Clause.text)
-            .where(Clause.document_id == document_id)
+            .where(Clause.document_id == document_id, in_page_range(Clause.page, state["source"]))
             .order_by(Clause.ordinal)
             .limit(SAMPLE_CLAUSES)
         )

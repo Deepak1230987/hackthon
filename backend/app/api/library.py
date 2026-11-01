@@ -4,10 +4,11 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.api import limits
 from app.api.documents import LANGUAGES
 from app.api.errors import ApiError
 from app.api.runs import document_view
-from app.db.models import Document, Run
+from app.db.models import Document
 
 router = APIRouter(prefix="/v1")
 
@@ -38,9 +39,4 @@ async def create_library_run(
         document = await session.get(Document, document_id)
         if document is None or not document.in_library:
             raise ApiError("DOCUMENT_NOT_FOUND", "That document wasn't found.", status=404)
-        run = Run(language=body.language, status="queued", source=source)
-        session.add(run)
-        await session.commit()
-        run_id = str(run.id)
-    services.runner.start(run_id, body.language, source)
-    return {"run_id": run_id}
+    return {"run_id": await limits.new_run(request, body.language, source)}

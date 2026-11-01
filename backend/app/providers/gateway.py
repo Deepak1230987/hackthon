@@ -23,6 +23,7 @@ TIMEOUT_S = 45
 # Extracting from a long document takes far longer than one page of OCR.
 LLM_TIMEOUT_S = 120
 FAST_TASKS = {"triage", "meaning", "answer"}
+CROSS_CHECKED_TASKS = {"entail"}
 BACKOFF_S = (1, 2, 4)
 EMBED_BATCH = 64
 RETRYABLE = {429, 500, 502, 503, 504}
@@ -131,9 +132,13 @@ class Gateway:
         settings = self._settings
         # Triage only decides whether to carry on, so it needn't use the slower model.
         primary = settings.llm_fast_model if task in FAST_TASKS else ""
+        models = [primary or settings.llm_primary_model, settings.llm_fallback_model]
+        if settings.cross_provider_verify and task in CROSS_CHECKED_TASKS:
+            # A second provider is less likely to share the first one's mistake.
+            models.reverse()
         failure = "no LLM model configured"
         previous = None
-        for model in (primary or settings.llm_primary_model, settings.llm_fallback_model):
+        for model in models:
             if not model or (_is_openai(model) and not settings.openai_api_key):
                 continue
             provider, call = (

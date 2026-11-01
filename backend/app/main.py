@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.acquisition.storage import Storage, SupabaseStorage
-from app.api import documents, errors, health, library, runs, voice
+from app.api import documents, errors, health, library, qa, runs, voice
 from app.config import Settings, get_settings
 from app.db.session import create_engine, create_session_factory
 from app.graph.build import build_graph
@@ -77,5 +77,6 @@ def create_app(
     app.include_router(documents.router)
     app.include_router(runs.router)
     app.include_router(library.router)
+    app.include_router(qa.router)
     app.include_router(voice.router)
     return app

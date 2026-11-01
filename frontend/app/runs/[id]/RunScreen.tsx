@@ -63,6 +63,13 @@ export function RunScreen({ id }: { id: string }) {
               ? errorStep(view.error).title
               : STATUS_TEXT[view.status]}
         </h1>
+        {view.queuePosition !== undefined && (
+          <p role="status" className="mt-2 text-muted">
+            {view.queuePosition === 1
+              ? "You're next. It starts as soon as a place is free."
+              : `You're number ${view.queuePosition} in the queue.`}
+          </p>
+        )}
         {notice && (
           <p role="status" className="mt-2 text-sm text-warning">
             {notice}
@@ -72,6 +79,7 @@ export function RunScreen({ id }: { id: string }) {
 
       {view.error && (
         <RunError
+          runId={id}
           error={view.error}
           sourceUrl={view.document?.source_url}
           language={view.language ?? DEFAULT_LANGUAGE}
@@ -105,6 +113,7 @@ export function RunScreen({ id }: { id: string }) {
       verdict={view.verdict}
       sentences={view.sentences}
       language={view.language}
+      firstPage={view.pageRange?.from}
       trace={trace}
     >
       {summary}

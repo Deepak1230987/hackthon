@@ -156,5 +156,17 @@ export function useRunStream(runId: string): {
     };
   }, [runId]);
 
+  // Nothing is emitted while a run waits for a slot, so its place in the queue has to be read.
+  const queued = loaded && state.view.status === "queued";
+  useEffect(() => {
+    if (!queued) return;
+    const timer = setInterval(() => {
+      fetchRun(runId)
+        .then((run) => dispatch({ type: "snapshot", run }))
+        .catch(() => undefined);
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [runId, queued]);
+
   return { view: state.view, connection, loaded };
 }

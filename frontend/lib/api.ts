@@ -3,6 +3,7 @@ import type {
   DocumentClauses,
   DocumentView,
   ParsedSpeech,
+  QaAnswer,
   RunSnapshot,
 } from "./types";
 
@@ -145,6 +146,49 @@ export async function speechToAnswer(
     { method: "POST", body: form },
   );
   return (await response.json()) as ParsedSpeech;
+}
+
+export async function choosePageRange(
+  runId: string,
+  from: number,
+  to: number,
+): Promise<string> {
+  const response = await request(
+    `/v1/runs/${encodeURIComponent(runId)}/page-range`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to }),
+    },
+  );
+  const { run_id } = (await response.json()) as { run_id: string };
+  return run_id;
+}
+
+export async function askQuestion(
+  runId: string,
+  question: string,
+): Promise<QaAnswer> {
+  const response = await request(`/v1/runs/${encodeURIComponent(runId)}/qa`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question }),
+  });
+  return (await response.json()) as QaAnswer;
+}
+
+export async function questionFromSpeech(
+  runId: string,
+  audio: Blob,
+): Promise<string> {
+  const form = new FormData();
+  form.append("audio", audio, "question");
+  const response = await request(
+    `/v1/runs/${encodeURIComponent(runId)}/qa/stt`,
+    { method: "POST", body: form },
+  );
+  const { transcript } = (await response.json()) as { transcript: string };
+  return transcript;
 }
 
 // audio_path is "audio/{hash}.mp3".

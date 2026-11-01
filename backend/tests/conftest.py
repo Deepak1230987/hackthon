@@ -72,6 +72,8 @@ def settings(migrated_database: str, tmp_path: Path) -> Settings:
         upload_dir=tmp_path,
         max_pdf_mb=1,
         embedding_dim=768,
+        # Every test shares one client address. The limit has its own tests.
+        max_runs_per_ip=100_000,
     )
 
 

@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.db.models import Document, DocumentPage
 from app.documents.extract import extract_pages, render_page
+from app.documents.pages import page_range
 from app.graph.deps import Deps, RunFailed
 from app.graph.state import RunState
 from app.providers.gateway import ProviderUnavailable
@@ -29,15 +30,18 @@ async def parse(state: RunState, deps: Deps) -> None:
                 )
             )
         )
-    if document.page_count > deps.settings.max_pages:
+    window = page_range(state["source"])
+    if window is None and document.page_count > deps.settings.max_pages:
         raise RunFailed(
             "DOC_TOO_LONG",
             f"This document has {document.page_count} pages. "
-            f"The limit is {deps.settings.max_pages}.",
+            f"Choose up to {deps.settings.max_pages} of them to explain.",
             action="page_range",
+            details={"page_count": document.page_count, "max_pages": deps.settings.max_pages},
         )
 
-    todo = [page for page in range(1, document.page_count + 1) if page not in done]
+    first, last = window or (1, document.page_count)
+    todo = [page for page in range(first, last + 1) if page not in done]
     if not todo:
         return
     content = await deps.storage.get(document.storage_path)

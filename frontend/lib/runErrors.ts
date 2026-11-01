@@ -1,6 +1,6 @@
 import type { ApiError } from "./types";
 
-export type NextStep = "retry" | "another" | "choose";
+export type NextStep = "retry" | "another" | "choose" | "range";
 
 // What the screen offers for each code the backend can end a run with. An
 // unknown code still shows its message, with a way to start again.
@@ -13,7 +13,7 @@ const NEXT_STEPS: Record<string, { title: string; next: NextStep }> = {
   UPLOAD_LOST: { title: "We lost your upload", next: "another" },
   PDF_INVALID: { title: "We couldn't open that PDF", next: "another" },
   PDF_ENCRYPTED: { title: "That PDF is password protected", next: "another" },
-  DOC_TOO_LONG: { title: "That document is too long", next: "another" },
+  DOC_TOO_LONG: { title: "Choose the pages to explain", next: "range" },
   NOT_A_POLICY: { title: "This doesn't look like a policy", next: "another" },
   NO_READABLE_TEXT: { title: "We couldn't find any text", next: "another" },
   MULTIPLE_PDFS: { title: "Choose a document", next: "choose" },

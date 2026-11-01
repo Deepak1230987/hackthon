@@ -9,6 +9,7 @@ type Language = {
   yes: string;
   no: string;
   notLegalAdvice: string;
+  askHeading: string;
 };
 
 export const LANGUAGES: Language[] = [
@@ -20,6 +21,7 @@ export const LANGUAGES: Language[] = [
     no: "नहीं",
     notLegalAdvice:
       "यह कानूनी सलाह नहीं है। कोई भी निर्णय लेने से पहले संबंधित कार्यालय से पुष्टि कर लें।",
+    askHeading: "इस दस्तावेज़ के बारे में पूछें",
   },
   {
     code: "mr",
@@ -29,6 +31,7 @@ export const LANGUAGES: Language[] = [
     no: "नाही",
     notLegalAdvice:
       "हा कायदेशीर सल्ला नाही. कोणताही निर्णय घेण्यापूर्वी संबंधित कार्यालयाकडून खात्री करून घ्या.",
+    askHeading: "या दस्तऐवजाबद्दल विचारा",
   },
 ];
 

@@ -48,7 +48,7 @@ docker-compose.yml  Caddyfile  .env.example  README.md
 | `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=420` | Limits |
 | `LLM_FAST_MODEL` | Used for triage, which only decides whether to carry on |
 | `MAX_PDF_MB=50`, `MAX_PAGES=200`, `PROFILE_TTL_S=3600` | Limits |
-| `CROSS_PROVIDER_VERIFY=false` | Use the other provider for entailment |
+| `CROSS_PROVIDER_VERIFY=false` | Send entailment to `LLM_FALLBACK_MODEL` first, falling back to the primary. Off until the evaluation in task 6.2 decides |
 | `ALLOWED_ORIGINS` | CORS |
 
 ## 3. Database schema
@@ -462,10 +462,12 @@ Each call adds to `Budget` and `runs.llm_calls`. LLM timeout is 45 seconds.
 1. Embed the question, or its English translation if needed, and retrieve the top 12 clauses.
 2. The LLM returns `{answer, clause_ordinals, quote}` or `{answer: null}`.
 3. The answer goes through `verify_claim`.
-4. On failure or null, the response is the abstention: "this document does not say", with the issuing authority if known.
-5. The answer is then translated, guarded and spoken like any other sentence.
+4. On failure or null, the response is the abstention: "this document does not say", with the issuing authority if known. A provider failure is `503 QA_UNAVAILABLE` instead, because nobody has found that the document doesn't say.
+5. The answer is then translated, guarded and spoken like any other sentence. If its translation fails the guard, the checked English is shown with no audio.
 
-Limits: 500 characters per question and 20 questions per run.
+A spoken question goes through `/qa/stt` and lands in the text box, so the citizen can check it before asking. Questions are never stored or logged.
+
+Limits: 500 characters per question and 20 questions per run. Questions open once a run is `completed` or `partial`.
 
 ## 12. API
 
@@ -483,8 +485,9 @@ Limits: 500 characters per question and 20 questions per run.
 | `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}`. `400 INVALID_ANSWER` with `details.fields` keeps the run waiting, and `409 NOT_WAITING_FOR_INPUT` means it isn't waiting |
 | `POST /v1/runs/{id}/stt` | Multipart `audio`, `field` | `{transcript, parsed, confidence}`. `parsed` is `null` when it should re-ask. Nothing is saved until the citizen confirms through `/answers` |
 | `GET /v1/audio/{hash}.mp3` | | Audio for a sentence's `audio_path`, cached for good because its name is a hash of its content |
-| `POST /v1/runs/{id}/qa` | `{question, language}` | `{answer, citations, audio_url, abstained}` |
-| `POST /v1/runs/{id}/page-range` | `{from, to}` | `202` |
+| `POST /v1/runs/{id}/qa` | `{question, language?}` | `{answer, answer_en, language, abstained, citations, authority, audio_path}`. `429 QUESTION_LIMIT` when the run has no questions left |
+| `POST /v1/runs/{id}/qa/stt` | Multipart `audio` | `{transcript}`, for the citizen to check before asking. Nothing is saved |
+| `POST /v1/runs/{id}/page-range` | `{from, to}` | `202 {run_id}`. A new run over those pages, from a run stopped by `DOC_TOO_LONG`. `400 INVALID_PAGE_RANGE`, or `409 PAGE_RANGE_NOT_NEEDED` for any other run |
 | `GET /v1/health` | | Database, provider and credit flags |
 
 ### 12.2 Error format
@@ -521,7 +524,9 @@ On connection, the server replays events with `seq > Last-Event-ID`, then stream
 
 ### 12.4 Abuse limits
 
-Five new runs per IP per 10 minutes, and 20 STT calls per run. `client_hash` is a salted IP hash, so raw IPs aren't stored.
+Five new runs per IP per 10 minutes, over uploads, links, library picks and page ranges, and 20 STT calls per run. `RATE_LIMITED` carries `details.retry_after_s`. `client_hash` is a keyed IP hash, so raw IPs aren't stored.
+
+`GET /v1/runs/{id}` adds `queue_position`, which is 1 for the next run to start and `null` once it isn't queued, and `page_range`, which is `{from, to}` for a run over part of a document.
 
 ### 12.5 Run event contract
 
