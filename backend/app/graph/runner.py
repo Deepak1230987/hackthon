@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from langgraph.types import Command
 from sqlalchemy import func, select, update
 
 from app.db.models import Claim, Run
@@ -12,6 +13,12 @@ from app.graph.state import SourceRequest, initial_state
 
 log = logging.getLogger(__name__)
 
+PROFILE_PURGE_S = 60
+
+
+def _pending_interrupts(snapshot: Any) -> list[Any]:
+    return [item for task in snapshot.tasks for item in task.interrupts]
+
 
 class RunRunner:
     def __init__(self, graph: Any, deps: Deps) -> None:
@@ -19,6 +26,7 @@ class RunRunner:
         self._deps = deps
         self._semaphore = asyncio.Semaphore(deps.settings.max_concurrent_runs)
         self._tasks: set[asyncio.Task] = set()
+        self._purger: asyncio.Task | None = None
 
     def start(self, run_id: str, language: str, source: SourceRequest) -> None:
         task = asyncio.create_task(self._execute(run_id, language, source))
@@ -26,7 +34,8 @@ class RunRunner:
         task.add_done_callback(self._tasks.discard)
 
     async def recover(self) -> None:
-        """Pick up runs that a restart left unfinished."""
+        """Pick up runs that a restart left unfinished. Runs waiting for input wait for their answer."""
+        self._purger = asyncio.create_task(self._purge_profiles())
         async with self._deps.sessions() as session:
             runs = await session.scalars(select(Run).where(Run.status.in_(("queued", "running"))))
             unfinished = runs.all()
@@ -37,9 +46,16 @@ class RunRunner:
     async def shutdown(self) -> None:
         # Cancelled runs stay marked running, so the next startup resumes them.
         tasks = list(self._tasks)
+        if self._purger:
+            tasks.append(self._purger)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _purge_profiles(self) -> None:
+        while True:
+            await asyncio.sleep(PROFILE_PURGE_S)
+            self._deps.profiles.purge_expired()
 
     async def _execute(self, run_id: str, language: str, source: SourceRequest) -> None:
         async with self._semaphore:
@@ -55,12 +71,25 @@ class RunRunner:
                 log.exception("Run %s failed", run_id)
                 await self._fail(run_id, "INTERNAL_ERROR", "Something went wrong.", "retry")
             else:
+                # A pause ends this task, so a citizen thinking isn't using up a slot or the timer.
+                checkpoint = await self._graph.aget_state(self._config(run_id))
+                interrupts = _pending_interrupts(checkpoint)
+                if interrupts:
+                    await self._deps.events.emit(run_id, "needs_input", {"field": interrupts[0].value["field"]})
+                    await self._set_status(run_id, "waiting_input")
+                    return
                 status = "partial" if result.get("partial") else "completed"
                 await self._set_status(run_id, status, finished=True)
 
+    def _config(self, run_id: str) -> dict[str, Any]:
+        return {"configurable": {"thread_id": run_id}}
+
     async def _invoke(self, run_id: str, language: str, source: SourceRequest) -> dict[str, Any]:
-        config = {"configurable": {"thread_id": run_id}}
+        config = self._config(run_id)
         checkpoint = await self._graph.aget_state(config)
+        if _pending_interrupts(checkpoint):
+            # Answers are in ProfileStore, so the resume value carries nothing about the citizen.
+            return await self._graph.ainvoke(Command(resume=True), config)
         # With a checkpoint, None continues from it. Without one, start from the beginning.
         started = bool(checkpoint.values)
         return await self._graph.ainvoke(

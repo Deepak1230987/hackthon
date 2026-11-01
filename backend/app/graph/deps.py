@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.acquisition.storage import Storage
 from app.config import Settings
 from app.graph.events import EventStore
+from app.profiles.store import ProfileStore
 from app.providers.gateway import Gateway
 
 
@@ -16,6 +17,10 @@ class Deps:
     events: EventStore
     storage: Storage
     gateway: Gateway
+    profiles: ProfileStore = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.profiles = ProfileStore(self.settings.profile_ttl_s)
 
 
 class RunFailed(Exception):

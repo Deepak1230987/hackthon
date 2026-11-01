@@ -6,9 +6,12 @@ from langgraph.graph import END, START, StateGraph
 
 from app.graph.deps import Deps
 from app.graph.nodes.acquire import acquire
+from app.graph.nodes.compile_rules import compile_rules
+from app.graph.nodes.evaluate import evaluate
 from app.graph.nodes.extract import extract
 from app.graph.nodes.parse import parse
 from app.graph.nodes.passthrough import passthrough
+from app.graph.nodes.script import script
 from app.graph.nodes.segment import segment
 from app.graph.nodes.triage import triage
 from app.graph.nodes.verify import needs_repair, verify
@@ -24,9 +27,9 @@ NODES: list[tuple[str, Node]] = [
     ("triage", triage),
     ("extract", extract),
     ("verify", verify),
-    ("compile_rules", passthrough),
-    ("evaluate", passthrough),
-    ("script", passthrough),
+    ("compile_rules", compile_rules),
+    ("evaluate", evaluate),
+    ("script", script),
     ("translate", passthrough),
     ("guard", passthrough),
     ("tts", passthrough),
