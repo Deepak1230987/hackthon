@@ -47,6 +47,14 @@ export function RunScreen({ id }: { id: string }) {
 
   const summary = (
     <>
+      <div className="sticky top-0 z-10 -my-2 bg-paper py-2">
+        <Link
+          href="/"
+          className="inline-flex min-h-11 items-center font-semibold text-accent underline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          ← Back to home
+        </Link>
+      </div>
       <div>
         <h1 className="text-2xl font-semibold">
           {loaded ? STATUS_TEXT[view.status] : "Loading your run…"}

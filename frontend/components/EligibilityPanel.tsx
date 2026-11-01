@@ -56,6 +56,17 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
   const [micType, setMicType] = useState<string | undefined>();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const questionRef = useRef<HTMLParagraphElement>(null);
+
+  // Each question mounts this form afresh, and it can appear far from where someone has
+  // scrolled. Not while the PDF is open over the page on a phone, which would lose their place.
+  useEffect(() => {
+    const element = questionRef.current;
+    if (!element || document.querySelector('[role="dialog"]')) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+  }, []);
 
   useEffect(() => {
     const id = setTimeout(() => setMicType(recorderType()), 0);
@@ -150,7 +161,7 @@ function QuestionForm({ runId, question }: { runId: string; question: Question }
 
   return (
     <div className="mt-2">
-      <p lang="hi" className="text-lg font-medium">
+      <p ref={questionRef} tabIndex={-1} lang="hi" className="text-lg font-medium outline-none">
         {questionText(question)}
       </p>
       <p className="text-sm text-muted">{question.question_en}</p>
