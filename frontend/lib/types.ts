@@ -120,6 +120,42 @@ export type Claim = {
   clauses: ClauseRef[];
 };
 
+// A field from the backend's registry. It holds no citizen's answer.
+export type Question = {
+  name: string;
+  type: "int" | "float" | "bool" | "enum" | "str";
+  options: string[] | null;
+  min: number | null;
+  max: number | null;
+  question_en: string;
+  unit: string | null;
+};
+
+// Claim ids and the outcome only, never the answers behind them.
+export type Verdict = {
+  outcome: string;
+  met: string[];
+  failed: string[];
+  unknown: string[];
+};
+
+export type Sentence = {
+  id: string;
+  ordinal: number;
+  language: string;
+  source_text: string;
+  translated_text: string | null;
+  claim_ids: string[];
+  audio_path: string | null;
+  guard_status: "pending" | "passed" | "flagged";
+};
+
+export type ParsedSpeech = {
+  transcript: string;
+  parsed: string | number | boolean | null;
+  confidence: number;
+};
+
 // One choice in details.options of a MULTIPLE_PDFS error.
 export type SourceOption = {
   url: string;
@@ -135,6 +171,9 @@ export type RunSnapshot = {
   error?: ApiError | null;
   claims?: Claim[];
   not_stated?: ClaimField[];
+  question?: Question | null;
+  verdict?: Verdict | null;
+  sentences?: Sentence[];
   events: RunEvent[];
 };
 
@@ -157,6 +196,9 @@ export type RunView = {
   clausesReady: boolean;
   claims: Claim[];
   notStated: ClaimField[];
+  question?: Question;
+  verdict?: Verdict;
+  sentences: Sentence[];
   steps: Step[];
   error?: ApiError;
 };

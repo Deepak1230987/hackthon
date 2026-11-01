@@ -317,7 +317,7 @@ async def test_script_cites_claims_and_starts_with_the_verdict(client, gateway, 
     assert events_of(view, "script_ready") == [{"sentences": 1}]
     assert [s["source_text"] for s in view["sentences"]] == ["The scheme gives Rs. 2,50,000."]
     assert view["sentences"][0]["claim_ids"] == [view["claims"][0]["id"]]
-    assert view["sentences"][0]["guard_status"] == "pending"
+    assert view["sentences"][0]["guard_status"] == "passed"
 
 
 async def test_verdict_sentence_is_fixed_text_citing_its_claim(client, gateway, app):

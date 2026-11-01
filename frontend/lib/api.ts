@@ -2,6 +2,7 @@ import type {
   ApiError,
   DocumentClauses,
   DocumentView,
+  ParsedSpeech,
   RunSnapshot,
 } from "./types";
 
@@ -109,6 +110,46 @@ export async function fetchClauses(
     { cache: "no-store" },
   );
   return (await response.json()) as DocumentClauses;
+}
+
+export async function submitAnswer(
+  runId: string,
+  field: string,
+  value: unknown,
+): Promise<void> {
+  await request(`/v1/runs/${encodeURIComponent(runId)}/answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers: { [field]: value } }),
+  });
+}
+
+export async function skipQuestion(runId: string, field: string): Promise<void> {
+  await request(`/v1/runs/${encodeURIComponent(runId)}/answers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ skip: [field] }),
+  });
+}
+
+export async function speechToAnswer(
+  runId: string,
+  field: string,
+  audio: Blob,
+): Promise<ParsedSpeech> {
+  const form = new FormData();
+  form.append("audio", audio, "answer");
+  form.append("field", field);
+  const response = await request(
+    `/v1/runs/${encodeURIComponent(runId)}/stt`,
+    { method: "POST", body: form },
+  );
+  return (await response.json()) as ParsedSpeech;
+}
+
+// audio_path is "audio/{hash}.mp3".
+export function audioUrl(audioPath: string): string {
+  return `${API_URL}/v1/${audioPath}`;
 }
 
 export function documentFileUrl(documentId: string): string {

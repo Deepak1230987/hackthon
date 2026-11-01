@@ -14,7 +14,17 @@ import {
 
 const MAX_SSE_FAILURES = 3;
 const POLL_INTERVAL_MS = 3000;
-const CLAIM_REFRESH_MS = 1000;
+const REFRESH_MS = 1000;
+// Events carry ids only, and these arrive in bursts, so the view is read at most
+// once a second while they do.
+const REFRESH_EVENTS = new Set<string>([
+  "claim_verified",
+  "verdict",
+  "script_ready",
+  "sentence_translated",
+  "guard_failed",
+  "sentence_ready",
+]);
 
 // Retrying can't fix a 4xx, except for a timeout or a rate limit.
 function isFinalRejection(status: number | undefined): boolean {
@@ -40,7 +50,7 @@ export function useRunStream(runId: string): {
     let stopped = false;
     let source: EventSource | undefined;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
-    let claimTimer: ReturnType<typeof setTimeout> | undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
     // Returns false when there is nothing more to wait for.
     const loadSnapshot = async (): Promise<boolean> => {
@@ -117,16 +127,16 @@ export function useRunStream(runId: string): {
           if (
             ended ||
             type === "segment_done" ||
+            (type === "run_status" && payload.status === "waiting_input") ||
             (type === "node_finished" && payload.node === "acquire")
           ) {
             void loadSnapshot();
           }
-          // Events carry claim ids only, and verified claims arrive in bursts.
-          if (type === "claim_verified" && !claimTimer) {
-            claimTimer = setTimeout(() => {
-              claimTimer = undefined;
+          if (REFRESH_EVENTS.has(type) && !refreshTimer) {
+            refreshTimer = setTimeout(() => {
+              refreshTimer = undefined;
               void loadSnapshot();
-            }, CLAIM_REFRESH_MS);
+            }, REFRESH_MS);
           }
         });
       }
@@ -142,7 +152,7 @@ export function useRunStream(runId: string): {
       stopped = true;
       source?.close();
       if (pollTimer) clearTimeout(pollTimer);
-      if (claimTimer) clearTimeout(claimTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
     };
   }, [runId]);
 

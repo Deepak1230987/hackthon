@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { initialRunState, runReducer, type RunState } from "./runReducer.ts";
-import type { Claim, RunEvent, RunEventType, RunStatus } from "./types.ts";
+import type {
+  Claim,
+  Question,
+  RunEvent,
+  RunEventType,
+  RunStatus,
+  Sentence,
+} from "./types.ts";
 
 const event = (
   seq: number,
@@ -203,6 +210,48 @@ test("not stated comes from the latest snapshot only", () => {
     },
   });
   assert.deepEqual(view.notStated, ["penalty"]);
+});
+
+const sentence = (id: string, audio_path: string | null): Sentence => ({
+  id,
+  ordinal: 0,
+  language: "hi",
+  source_text: "English",
+  translated_text: "हिन्दी",
+  claim_ids: [],
+  audio_path,
+  guard_status: "passed",
+});
+
+test("an older snapshot can't take audio away", () => {
+  const withAudio = runReducer(initialRunState, {
+    type: "snapshot",
+    run: { id: "r", status: "running", sentences: [sentence("a", "audio/a.mp3")], events: [] },
+  });
+  const { view } = runReducer(withAudio, {
+    type: "snapshot",
+    run: { id: "r", status: "running", sentences: [sentence("a", null)], events: [] },
+  });
+  assert.equal(view.sentences[0].audio_path, "audio/a.mp3");
+});
+
+test("an answered question goes away once the run moves on", () => {
+  const question: Question = {
+    name: "is_student",
+    type: "bool",
+    options: null,
+    min: null,
+    max: null,
+    question_en: "Are you a student?",
+    unit: null,
+  };
+  const waiting = runReducer(initialRunState, {
+    type: "snapshot",
+    run: { id: "r", status: "waiting_input", question, events: [] },
+  });
+  assert.equal(waiting.view.question?.name, "is_student");
+  const { view } = replay([event(1, "run_status", { status: "running" })], waiting);
+  assert.equal(view.question, undefined);
 });
 
 test("a terminal snapshot settles steps when polling missed the event", () => {

@@ -24,6 +24,24 @@ const REJECTION_REASONS: Record<string, string> = {
 // These say the check couldn't run. They say nothing about whether the claim is right.
 const UNCHECKED_REASONS = new Set(["BUDGET_EXHAUSTED", "PROVIDERS_UNAVAILABLE"]);
 
+const GUARD_REASONS: Record<string, string> = {
+  NUMBER_CHANGED: "a number changed in translation",
+  MEANING_CHANGED: "the meaning changed in translation",
+  MEANING_UNCHECKED: "the meaning couldn't be checked",
+  NOT_TRANSLATED: "it couldn't be translated",
+};
+
+const OUTCOME_TEXT: Record<string, string> = {
+  MEETS_STATED_CRITERIA: "You appear to meet the stated criteria",
+  DOES_NOT_MEET: "You don't appear to meet a criterion",
+  NEEDS_INFO: "More details are needed",
+  CANNOT_DETERMINE: "This document can't settle eligibility",
+};
+
+function sentenceCount(count: number): string {
+  return `${count} ${count === 1 ? "sentence" : "sentences"}`;
+}
+
 function claimCount(count: number): string {
   return `${count} ${count === 1 ? "claim" : "claims"}`;
 }
@@ -35,7 +53,6 @@ function pageList(pages: unknown[]): string {
 
 function describe(event: RunEvent): Omit<TraceLine, "key"> {
   const p = event.payload;
-  const suffix = (value: unknown) => (value ? `: ${String(value)}` : "");
   switch (event.type) {
     case "fetch_attempt":
       return {
@@ -58,11 +75,9 @@ function describe(event: RunEvent): Omit<TraceLine, "key"> {
     case "needs_input":
       return { text: "Waiting for your answer", tone: "warn" };
     case "verdict":
-      return { text: `Result${suffix(p.outcome)}`, tone: "plain" };
+      return { text: OUTCOME_TEXT[String(p.outcome)] ?? "Eligibility checked", tone: "plain" };
     case "script_ready":
       return { text: `Script has ${p.sentences ?? "?"} sentences`, tone: "plain" };
-    case "sentence_translated":
-      return { text: `Sentence translated${suffix(p.translator)}`, tone: "plain" };
     case "failover":
       return {
         text: `${String(p.from ?? "The AI provider")} failed${
@@ -70,10 +85,6 @@ function describe(event: RunEvent): Omit<TraceLine, "key"> {
         }, so we switched to ${String(p.to ?? "another provider")}`,
         tone: "warn",
       };
-    case "guard_failed":
-      return { text: `Guard failed${suffix(p.reason)}`, tone: "bad" };
-    case "sentence_ready":
-      return { text: "Sentence audio ready", tone: "good" };
     default:
       return { text: event.type, tone: "plain" };
   }
@@ -119,6 +130,18 @@ export function traceLines(events: RunEvent[], attempt = 1): TraceLine[] {
       count(event, "retry", "warn");
       continue;
     }
+    if (event.type === "sentence_translated") {
+      count(event, "translated", "plain");
+      continue;
+    }
+    if (event.type === "sentence_ready") {
+      count(event, "spoken", "good");
+      continue;
+    }
+    if (event.type === "guard_failed") {
+      count(event, `guard:${String(event.payload.reason)}`, "bad");
+      continue;
+    }
     if (event.type === "claim_rejected") {
       const reason = String(event.payload.reason);
       count(
@@ -154,12 +177,20 @@ export function traceLines(events: RunEvent[], attempt = 1): TraceLine[] {
   }
   for (const [id, line] of counted) {
     const claims = claimCount(line.count);
-    if (id === "extracted") {
+    const sentences = sentenceCount(line.count);
+    if (id === "translated") {
+      line.text = `Translated ${sentences}`;
+    } else if (id === "spoken") {
+      line.text = `${sentences} ready to hear`;
+    } else if (id.startsWith("guard:")) {
+      const reason = id.slice("guard:".length);
+      line.text = `Caught ${sentences}: ${GUARD_REASONS[reason] ?? reason}`;
+    } else if (id === "extracted") {
       line.text = attempt > 1 ? `Rewrote ${claims}` : `Extracted ${claims}`;
     } else if (id === "verified") {
       line.text = `${claims} passed every check`;
     } else if (id === "retry") {
-      line.text = `Sent ${claims} back to be corrected`;
+      line.text = `Sent ${line.count} back to be corrected`;
     } else {
       const reason = id.slice("rejected:".length);
       const why = REJECTION_REASONS[reason] ?? reason;

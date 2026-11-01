@@ -23,4 +23,5 @@ async def health(request: Request) -> dict:
             "sarvam": bool(settings.sarvam_api_key),
             "supabase": bool(settings.supabase_service_key),
         },
+        "sarvam_out_of_credit": services.deps.gateway.sarvam.out_of_credit,
     }

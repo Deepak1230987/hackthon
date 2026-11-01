@@ -10,12 +10,15 @@ import {
   type ReactNode,
 } from "react";
 
+import { AudioPlayer } from "@/components/AudioPlayer";
 import { ClauseList } from "@/components/ClauseList";
+import { EligibilityPanel } from "@/components/EligibilityPanel";
 import { PagePicker } from "@/components/PagePicker";
 import { PdfViewer } from "@/components/PdfViewer";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { RightsCard } from "@/components/RightsCard";
 import { ApiRequestError, fetchClauses } from "@/lib/api";
+import { isTerminal } from "@/lib/runReducer";
 import type {
   Claim,
   ClaimField,
@@ -23,7 +26,10 @@ import type {
   ClauseRef,
   DocumentClauses,
   DocumentView,
+  Question,
   RunStatus,
+  Sentence,
+  Verdict,
 } from "@/lib/types";
 
 const DESKTOP = "(min-width: 1024px)";
@@ -38,19 +44,29 @@ const isDesktopNow = () => window.matchMedia(DESKTOP).matches;
 const isDesktopOnServer = () => false;
 
 export function DocumentWorkspace({
+  runId,
   document: doc,
   clausesReady,
   status,
   claims,
   notStated,
+  question,
+  verdict,
+  sentences,
+  language,
   trace,
   children,
 }: {
+  runId: string;
   document: DocumentView;
   clausesReady: boolean;
   status: RunStatus;
   claims: Claim[];
   notStated: ClaimField[];
+  question?: Question;
+  verdict?: Verdict;
+  sentences: Sentence[];
+  language?: string;
   trace: ReactNode;
   children: ReactNode;
 }) {
@@ -155,6 +171,21 @@ export function DocumentWorkspace({
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col gap-6">
         {children}
+        <EligibilityPanel
+          runId={runId}
+          question={question}
+          verdict={verdict}
+          claims={claims}
+          onShowSource={showSource}
+        />
+        <AudioPlayer
+          sentences={sentences}
+          claims={claims}
+          language={language}
+          finished={isTerminal(status)}
+          selectedClauseId={selectedId}
+          onShowSource={showSource}
+        />
         <RightsCard
           status={status}
           claims={claims}

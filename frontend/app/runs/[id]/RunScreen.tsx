@@ -82,11 +82,16 @@ export function RunScreen({ id }: { id: string }) {
   return (
     <DocumentWorkspace
       key={view.document.id}
+      runId={id}
       document={view.document}
       clausesReady={view.clausesReady}
       status={view.status}
       claims={view.claims}
       notStated={view.notStated}
+      question={view.question}
+      verdict={view.verdict}
+      sentences={view.sentences}
+      language={view.language}
       trace={trace}
     >
       {summary}

@@ -392,7 +392,7 @@ The UI asks one question at a time, up to 8. The citizen can skip a question or 
 
 ### 8.5 Voice answers
 
-A transcript goes through an LLM that returns `{field, value, confidence}` under the field's schema, and range checks then apply. **The UI always shows the parsed value for confirmation before it is saved**, because a misheard income can change the outcome. Questions are translated once through Sarvam and cached.
+A transcript goes through an LLM that returns `{field, value, confidence}` under the field's schema, and range checks then apply. **The UI always shows the parsed value for confirmation before it is saved**, because a misheard income can change the outcome. A clear answer such as `हाँ` or `25 साल` is read by code, without an LLM call. Questions and options are fixed Hindi text in `frontend/lib/questions.ts`, so asking costs no translation call.
 
 ## 9. Voice layer
 
@@ -421,7 +421,7 @@ def numeric_guard(src, tgt):      return numbers(src) == numbers(tgt)
 async def meaning_guard(src, tgt): return await llm_backtranslate_judge(src, tgt)
 ```
 
-The numeric guard runs first. The meaning guard is called only if that passes, and returns `SAME`, `MINOR_DIFF` or `CHANGED`; only `CHANGED` fails. Test `mayura:v1` with `modern-colloquial` at hour 3, since it allows a less formal register.
+The numeric guard runs first and is free. The meaning guard is called only for sentences that pass it, in batches of 8 on the fast model, and returns `SAME`, `MINOR_DIFF` or `CHANGED`; only `CHANGED` fails. A failed sentence is retried once with the LLM, because Sarvam would repeat its wording, and is then flagged: shown in English and not read aloud. Test `mayura:v1` with `modern-colloquial` at hour 3, since it allows a less formal register.
 
 ### 9.3 TTS and audio
 
@@ -480,7 +480,8 @@ Limits: 500 characters per question and 20 questions per run.
 | `GET /v1/runs/{id}` | | Full run view, also the polling fallback. Adds `claims: [{id, field, text, quote, clauses: [{id, ordinal, page, bbox, extraction}]}]`, verified claims only, and `not_stated: [field]` |
 | `GET /v1/runs/{id}/events` | `Last-Event-ID` | SSE stream |
 | `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}`. `400 INVALID_ANSWER` with `details.fields` keeps the run waiting, and `409 NOT_WAITING_FOR_INPUT` means it isn't waiting |
-| `POST /v1/runs/{id}/stt` | Multipart audio, `field` | `{transcript, parsed, confidence}` |
+| `POST /v1/runs/{id}/stt` | Multipart `audio`, `field` | `{transcript, parsed, confidence}`. `parsed` is `null` when it should re-ask. Nothing is saved until the citizen confirms through `/answers` |
+| `GET /v1/audio/{hash}.mp3` | | Audio for a sentence's `audio_path`, cached for good because its name is a hash of its content |
 | `POST /v1/runs/{id}/qa` | `{question, language}` | `{answer, citations, audio_url, abstained}` |
 | `POST /v1/runs/{id}/page-range` | `{from, to}` | `202` |
 | `GET /v1/health` | | Database, provider and credit flags |

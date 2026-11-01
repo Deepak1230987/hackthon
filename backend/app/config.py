@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     embedding_model: str = ""
     embedding_dim: int | None = None
     tts_model: str = "bulbul:v4-flash"
+    tts_voice: str = "ritu_hi_customer"
     translate_model: str = "sarvam-translate:v1"
     stt_model: str = "saaras:v4"
 

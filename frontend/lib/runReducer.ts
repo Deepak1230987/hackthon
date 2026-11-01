@@ -5,6 +5,7 @@ import type {
   RunSnapshot,
   RunStatus,
   RunView,
+  Sentence,
   Step,
   StepStatus,
 } from "./types";
@@ -26,6 +27,7 @@ export const initialRunState: RunState = {
     clausesReady: false,
     claims: [],
     notStated: [],
+    sentences: [],
     steps: [],
   },
   seen: new Set(),
@@ -107,6 +109,16 @@ function mergeClaims(known: Claim[], incoming: Claim[]): Claim[] {
   return [...incoming, ...known.filter((c) => !ids.has(c.id))];
 }
 
+// Audio only ever gets added, so an older snapshot can't take it away.
+function mergeSentences(known: Sentence[], incoming: Sentence[]): Sentence[] {
+  if (incoming.length === 0) return known;
+  const audio = new Map(known.map((s) => [s.id, s.audio_path]));
+  return incoming.map((s) => ({
+    ...s,
+    audio_path: s.audio_path ?? audio.get(s.id) ?? null,
+  }));
+}
+
 function applyEvent(state: RunState, event: RunEvent): RunState {
   if (state.seen.has(event.seq)) return state;
 
@@ -118,6 +130,7 @@ function applyEvent(state: RunState, event: RunEvent): RunState {
   if (event.type === "run_status") {
     view.status = event.payload.status as RunStatus;
     if (event.payload.error) view.error = event.payload.error as ApiError;
+    if (view.status !== "waiting_input") view.question = undefined;
   }
   if (event.type === "segment_done") view.clausesReady = true;
   return { view, seen, maxSeq: Math.max(state.maxSeq, event.seq) };
@@ -135,6 +148,8 @@ export function runReducer(state: RunState, action: RunAction): RunState {
         language: action.run.language ?? next.view.language,
         document: action.run.document ?? next.view.document,
         claims: mergeClaims(next.view.claims, action.run.claims ?? []),
+        verdict: action.run.verdict ?? next.view.verdict,
+        sentences: mergeSentences(next.view.sentences, action.run.sentences ?? []),
       };
       // A snapshot requested before newer stream events arrived must not move
       // the status backwards.
@@ -143,6 +158,7 @@ export function runReducer(state: RunState, action: RunAction): RunState {
         view.status = action.run.status;
         view.error = action.run.error ?? view.error;
         view.notStated = action.run.not_stated ?? view.notStated;
+        view.question = action.run.question ?? undefined;
         if (action.run.status === "failed") {
           view.steps = settleRunning(view.steps, "failed");
         } else if (isTerminal(action.run.status)) {

@@ -77,7 +77,7 @@ test("rejections are grouped by reason and stay visible", () => {
     [
       ["1 claim passed every check", "good"],
       ["Rejected 2 claims: the quote isn't in the cited clause", "bad"],
-      ["Sent 2 claims back to be corrected", "warn"],
+      ["Sent 2 back to be corrected", "warn"],
       ["Rejected 1 claim: the clause doesn't support it", "bad"],
     ],
   );
@@ -89,6 +89,22 @@ test("a provider failure reads as unchecked, not rejected", () => {
   ]);
   assert.equal(line.text, "Couldn't check 1 claim: the AI provider couldn't check it");
   assert.equal(line.tone, "warn");
+});
+
+test("a changed amount in translation stays visible", () => {
+  const lines = traceLines([
+    event(1, "sentence_translated", { sentence_id: "a" }),
+    event(2, "guard_failed", { sentence_id: "a", reason: "NUMBER_CHANGED" }),
+    event(3, "sentence_ready", { sentence_id: "b" }),
+  ]);
+  assert.deepEqual(
+    lines.map((l) => [l.text, l.tone]),
+    [
+      ["Translated 1 sentence", "plain"],
+      ["Caught 1 sentence: a number changed in translation", "bad"],
+      ["1 sentence ready to hear", "good"],
+    ],
+  );
 });
 
 test("an unknown rejection reason is still shown", () => {

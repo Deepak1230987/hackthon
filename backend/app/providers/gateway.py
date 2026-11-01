@@ -12,6 +12,8 @@ from app.config import Settings
 from app.documents.ocr import OCR_KINDS, OCR_PROMPT, OCR_SCHEMA, OPENAI_OCR_SCHEMA
 from app.providers.budget import Budget
 from app.providers.circuit import Circuit
+from app.providers.errors import ProviderUnavailable
+from app.providers.sarvam import Sarvam
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +22,7 @@ OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 TIMEOUT_S = 45
 # Extracting from a long document takes far longer than one page of OCR.
 LLM_TIMEOUT_S = 120
-FAST_TASKS = {"triage"}
+FAST_TASKS = {"triage", "meaning", "answer"}
 BACKOFF_S = (1, 2, 4)
 EMBED_BATCH = 64
 RETRYABLE = {429, 500, 502, 503, 504}
@@ -30,10 +32,6 @@ OPENAI_MODEL_PREFIXES = ("gpt-", "o1", "o3", "o4")
 
 
 Model = TypeVar("Model", bound=BaseModel)
-
-
-class ProviderUnavailable(Exception):
-    pass
 
 
 def _is_openai(model: str) -> bool:
@@ -93,6 +91,7 @@ class Gateway:
             headers={"Authorization": f"Bearer {settings.openai_api_key}"}, timeout=TIMEOUT_S
         )
         self._circuits: dict[str, Circuit] = {}
+        self.sarvam = Sarvam(settings)
 
     def _circuit(self, provider: str) -> Circuit:
         return self._circuits.setdefault(provider, Circuit())
@@ -346,3 +345,4 @@ class Gateway:
     async def close(self) -> None:
         await self._client.aclose()
         await self._openai.aclose()
+        await self.sarvam.close()

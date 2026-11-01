@@ -64,14 +64,14 @@ async def test_upload_runs_to_the_end_and_stores_file_with_hash(client, storage)
     assert served.headers["content-type"] == "application/pdf"
 
 
-async def test_trace_shows_which_nodes_are_not_built(client):
+async def test_trace_reports_every_node(client):
     run_id = await upload(client, make_pdf("trace"))
     view = await wait_for_end(client, run_id)
     payloads = [e["payload"] for e in view["events"] if e["type"] == "node_finished"]
     finished = {p["node"]: p["implemented"] for p in payloads}
     assert all(isinstance(p["duration_ms"], int) for p in payloads)
     assert finished["acquire"] is True
-    assert finished["tts"] is False
+    assert finished["tts"] is True
     assert len(finished) == 12
 
 
