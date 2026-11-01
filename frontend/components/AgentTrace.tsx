@@ -85,6 +85,8 @@ function StepRow({ step }: { step: Step }) {
   );
 }
 
+const FOLD_ABOVE_STEPS = 3;
+
 function SelfCheck({ steps, finished }: { steps: Step[]; finished: boolean }) {
   const { rejected, corrected, unresolved, unchecked } =
     correctionSummary(steps);
@@ -129,14 +131,15 @@ export function AgentTrace({
   // A finished run's steps are long on a phone, so they fold away and leave the
   // self-check above them. While it runs they stay open to watch.
   const [choice, setChoice] = useState<boolean | null>(null);
-  const open = choice ?? !finished;
+  const foldable = finished && steps.length > FOLD_ABOVE_STEPS;
+  const open = choice ?? !foldable;
   return (
     <section aria-labelledby="trace-heading">
       <h2 id="trace-heading" className="mb-4 text-lg font-semibold">
         Steps
       </h2>
       <SelfCheck steps={steps} finished={finished} />
-      {finished && steps.length > 0 && (
+      {foldable && (
         <button
           type="button"
           aria-expanded={open}
