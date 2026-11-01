@@ -31,12 +31,22 @@ router = APIRouter(prefix="/v1")
 
 MAX_QUESTION_CHARS = 500
 TOP_CLAUSES = 12
+# A question can match a table's heading and not its rows, as a Hindi question did on an English
+# table of scholarship rates, so the clauses either side of each match go in too.
+NEIGHBOURING_CLAUSES = 2
 # Used when retrieval isn't available, so that a failed embedding doesn't lose the answer.
 FALLBACK_CLAUSES = 60
 RETRIEVE_TIMEOUT_S = 20
-# The answer, entailment, a translation and its check, each of which may need one repair.
-CALLS_PER_QUESTION = 8
+# The answer and a second try at it, entailment, a translation and its check, each of which may
+# need one repair.
+CALLS_PER_QUESTION = 10
 ANSWERABLE = ("completed", "partial")
+MAX_ANSWER_ATTEMPTS = 2
+ANSWER_FEEDBACK = (
+    "\nYour last reply failed an automatic check: its quote wasn't an exact copy of the clause it"
+    " cited, or the quote didn't contain a number from the answer. Copy the quote character for"
+    " character from one clause, and cite that clause.\n"
+)
 
 ABSTENTION = "This document does not say."
 # Fixed, so the most common honest answer costs no call and never varies.
@@ -88,6 +98,15 @@ async def _retrieve(run: Run, question: str, deps: Deps) -> list[Clause]:
                     .limit(TOP_CLAUSES)
                 )
             ).all()
+            wanted = {
+                clause.ordinal + step
+                for clause in found
+                for step in range(-NEIGHBOURING_CLAUSES, NEIGHBOURING_CLAUSES + 1)
+            }
+            if wanted:
+                found = (
+                    await session.scalars(select(Clause).where(*scope, Clause.ordinal.in_(wanted)))
+                ).all()
         if not found:
             found = (
                 await session.scalars(
@@ -103,24 +122,30 @@ async def _verified_answer(
     """The answer and its clauses, or None if the document doesn't support one."""
     by_ordinal = {clause.ordinal: clause for clause in clauses}
     document = "\n".join(f"[{clause.ordinal}] {as_data(clause.text)}" for clause in clauses)
-    prompt = (
-        load("qa").replace("{question}", as_data(question)).replace("{clauses}", document)
-    )
-    result = await deps.gateway.structured("qa", prompt, GroundedAnswer, budget)
-    if not result.answer or not result.answer.strip():
-        return None
-
-    # Any unknown ordinal leaves the answer citing nothing, which the verifier rejects.
-    cited = (
-        [by_ordinal[ordinal] for ordinal in result.clause_ordinals]
-        if all(ordinal in by_ordinal for ordinal in result.clause_ordinals)
-        else []
-    )
-    answer = result.answer.strip()
-    if check_claim(
-        answer, result.quote, [CitedClause(clause.norm_text, clause.extraction) for clause in cited]
-    ):
-        return None
+    template = load("qa").replace("{question}", as_data(question)).replace("{clauses}", document)
+    feedback = ""
+    for attempt in range(MAX_ANSWER_ATTEMPTS):
+        result = await deps.gateway.structured(
+            "qa", template.replace("{feedback}", feedback), GroundedAnswer, budget
+        )
+        if not result.answer or not result.answer.strip():
+            return None
+        # Any unknown ordinal leaves the answer citing nothing, which the verifier rejects.
+        cited = (
+            [by_ordinal[ordinal] for ordinal in result.clause_ordinals]
+            if all(ordinal in by_ordinal for ordinal in result.clause_ordinals)
+            else []
+        )
+        answer = result.answer.strip()
+        problem = check_claim(
+            answer, result.quote, [CitedClause(clause.norm_text, clause.extraction) for clause in cited]
+        )
+        if problem is None:
+            break
+        # A correct answer with an imperfect quote mustn't become "the document doesn't say".
+        if attempt == MAX_ANSWER_ATTEMPTS - 1:
+            return None
+        feedback = ANSWER_FEEDBACK
     prompt = entailment_prompt([(answer, [clause.text for clause in cited])])
     verdicts = (await deps.gateway.structured("entail", prompt, EntailmentResult, budget)).verdicts
     # An answer the model skipped hasn't been shown to be supported.

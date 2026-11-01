@@ -317,3 +317,46 @@ async def test_queue_position_counts_the_runs_ahead(client, app, gateway):
         )
         await session.commit()
     assert (await client.get(f"/v1/runs/{later_id}")).json()["queue_position"] is None
+
+
+async def test_a_correct_answer_with_a_bad_quote_gets_a_second_try(client, gateway):
+    run_id = await finished_run(client, "second try")
+    gateway.replies["qa"] = [grounded(quote="words that are not in the clause"), grounded()]
+    gateway.sarvam.translations[ANSWER] = HINDI
+    before = len(gateway.prompts.get("qa", []))
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is False
+    assert body["answer"] == HINDI
+    prompts = gateway.prompts["qa"][before:]
+    assert len(prompts) == 2
+    assert "failed an automatic check" not in prompts[0]
+    assert "failed an automatic check" in prompts[1]
+
+
+async def test_an_answer_that_fails_twice_is_still_never_shown(client, gateway):
+    run_id = await finished_run(client, "fails twice")
+    bad = grounded(quote="words that are not in the clause")
+    gateway.replies["qa"] = [bad, bad]
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is True
+    assert body["citations"] == []
+
+
+async def test_abstention_costs_no_second_try(client, gateway):
+    run_id = await finished_run(client, "no second try")
+    gateway.replies["qa"] = [GroundedAnswer(answer=None)]
+    before = len(gateway.prompts.get("qa", []))
+    await ask(client, run_id, "Who won the cricket match?")
+    assert len(gateway.prompts["qa"]) == before + 1
+
+
+async def test_clauses_beside_a_match_reach_the_model(client, gateway):
+    document = pymupdf.open()
+    page = document.new_page()
+    for line in range(30):
+        page.insert_text((72, 40 + line * 24), f"{line + 1}. Rule number {line + 1} of the scheme.")
+    run_id = (await wait_for_end(client, await upload(client, document.tobytes())))["id"]
+    gateway.replies["qa"] = [GroundedAnswer(answer=None)]
+    await ask(client, run_id)
+    sent = gateway.prompts["qa"][-1].count("Rule number")
+    assert sent > 12
