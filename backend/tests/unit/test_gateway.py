@@ -82,3 +82,32 @@ async def test_openai_is_not_called_without_a_key():
     gateway = _gateway(lambda r: httpx.Response(200, json=RECITATION), openai)
     with pytest.raises(ProviderUnavailable, match="^recitation$"):
         await gateway.vision_ocr(b"png")
+
+
+async def test_openai_first_reads_the_page_without_gemini():
+    def gemini(request):
+        raise AssertionError("Gemini was called")
+
+    def openai(request):
+        content = json.dumps({"items": [{"kind": "para", "text": "नियम"}]})
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    gateway = _gateway(
+        gemini, openai, openai_api_key="o", llm_fallback_model="vision", primary_provider="openai"
+    )
+    assert (await gateway.vision_ocr(b"png"))[0]["text"] == "नियम"
+
+
+async def test_openai_first_falls_back_to_gemini_for_ocr():
+    def openai(request):
+        return httpx.Response(401, json={})
+
+    good = {"candidates": [{"content": {"parts": [{"text": '[{"kind": "para", "text": "a"}]'}]}}]}
+    gateway = _gateway(
+        lambda r: httpx.Response(200, json=good),
+        openai,
+        openai_api_key="o",
+        llm_fallback_model="vision",
+        primary_provider="openai",
+    )
+    assert (await gateway.vision_ocr(b"png"))[0]["text"] == "a"

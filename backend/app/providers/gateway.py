@@ -89,6 +89,9 @@ class Gateway:
         )
         self._circuits: dict[str, Circuit] = {}
 
+    def _openai_ready(self) -> bool:
+        return bool(self._settings.openai_api_key and self._settings.llm_fallback_model)
+
     def _circuit(self, provider: str) -> Circuit:
         return self._circuits.setdefault(provider, Circuit())
 
@@ -128,8 +131,10 @@ class Gateway:
         # Triage only decides whether to carry on, so it needn't use the slower model.
         primary = settings.llm_fast_model if task in FAST_TASKS else ""
         providers = [("gemini", self._gemini_text, primary or settings.llm_primary_model)]
-        if settings.openai_api_key and settings.llm_fallback_model:
+        if self._openai_ready():
             providers.append(("openai", self._openai_text, settings.llm_fallback_model))
+        if settings.primary_provider == "openai":
+            providers.reverse()
 
         failure = "no LLM model configured"
         previous = None
@@ -202,17 +207,40 @@ class Gateway:
             ],
             "response_format": {"type": "json_object"},
         }
+        result = await self._openai_post(body)
         try:
-            response = await self._openai.post(OPENAI_URL, json=body, timeout=LLM_TIMEOUT_S)
-            if response.status_code != 200:
-                raise ProviderUnavailable(f"status {response.status_code}")
-            return response.json()["choices"][0]["message"]["content"]
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailable(type(exc).__name__) from exc
+            return result["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 
+    async def _openai_post(self, body: dict[str, Any]) -> dict[str, Any]:
+        failure = "no attempt made"
+        for delay in (*BACKOFF_S, None):
+            try:
+                response = await self._openai.post(OPENAI_URL, json=body, timeout=LLM_TIMEOUT_S)
+                if response.status_code == 200:
+                    return response.json()
+                failure = f"status {response.status_code}"
+                if (
+                    response.status_code == 400
+                    and "temperature" in response.text
+                    and "temperature" in body
+                ):
+                    # Some models accept only their default, so ask again without it.
+                    body = {key: value for key, value in body.items() if key != "temperature"}
+                    continue
+                # Retrying can't help when the account has run out of credit.
+                if response.status_code not in RETRYABLE or "insufficient_quota" in response.text:
+                    break
+            except httpx.HTTPError as exc:
+                failure = type(exc).__name__
+            if delay is not None:
+                await asyncio.sleep(delay + random.random())
+        log.warning("OpenAI on %s failed: %s", body.get("model"), failure)
+        raise ProviderUnavailable(failure)
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
+        # Gemini only: vectors from another model can't be compared with the stored ones.
         model = self._settings.embedding_model
         vectors: list[list[float]] = []
         for start in range(0, len(texts), EMBED_BATCH):
@@ -234,6 +262,20 @@ class Gateway:
         return vectors
 
     async def vision_ocr(self, image: bytes) -> list[dict[str, str]]:
+        readers = [("Gemini", self._gemini_ocr)]
+        if self._openai_ready():
+            readers.append(("OpenAI", self._openai_ocr))
+        if self._settings.primary_provider == "openai":
+            readers.reverse()
+        failure = ""
+        for name, read in readers:
+            try:
+                return await read(image)
+            except ProviderUnavailable as exc:
+                failure = f"{failure}, then {name}: {exc}" if failure else str(exc)
+        raise ProviderUnavailable(failure)
+
+    async def _gemini_ocr(self, image: bytes) -> list[dict[str, str]]:
         body = {
             "contents": [
                 {
@@ -272,11 +314,6 @@ class Gateway:
                 failure = str(exc)
             except (KeyError, IndexError, TypeError, ValueError) as exc:
                 failure = f"unusable reply: {type(exc).__name__}"
-        if settings.openai_api_key and settings.llm_fallback_model:
-            try:
-                return await self._openai_ocr(image)
-            except ProviderUnavailable as exc:
-                failure = f"{failure}, then OpenAI: {exc}"
         raise ProviderUnavailable(failure)
 
     async def _openai_ocr(self, image: bytes) -> list[dict[str, str]]:
@@ -295,14 +332,10 @@ class Gateway:
             ],
             "response_format": {"type": "json_schema", "json_schema": OPENAI_OCR_SCHEMA},
         }
+        result = await self._openai_post(body)
         try:
-            response = await self._openai.post(OPENAI_URL, json=body)
-            if response.status_code != 200:
-                raise ProviderUnavailable(f"status {response.status_code}")
-            content = response.json()["choices"][0]["message"]["content"]
+            content = result["choices"][0]["message"]["content"]
             return _ocr_items(json.loads(content)["items"])
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailable(type(exc).__name__) from exc
         except (KeyError, IndexError, TypeError, ValueError) as exc:
             raise ProviderUnavailable(f"unusable reply: {type(exc).__name__}") from exc
 

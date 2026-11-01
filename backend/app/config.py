@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,6 +19,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     sarvam_api_key: str = ""
 
+    # Which provider is tried first. The other one becomes the fallback, if it is configured.
+    primary_provider: Literal["gemini", "openai"] = "gemini"
     llm_primary_model: str = ""
     llm_fallback_model: str = ""
     llm_fast_model: str = ""

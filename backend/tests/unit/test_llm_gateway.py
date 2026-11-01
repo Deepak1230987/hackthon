@@ -230,3 +230,89 @@ def test_gemini_schema_flattens_references_and_nullable():
     triage = gemini_schema(TriageResult.model_json_schema())
     assert triage["properties"]["title"] == {"type": "STRING", "nullable": True}
     assert "$ref" not in json.dumps(schema)
+
+
+def openai_first(gemini, openai):
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://x",
+        gemini_api_key="g",
+        openai_api_key="o",
+        primary_provider="openai",
+        llm_primary_model="main",
+        llm_fallback_model="backup",
+    )
+    gateway = Gateway(settings)
+    gateway._client = httpx.AsyncClient(transport=httpx.MockTransport(gemini))
+    gateway._openai = httpx.AsyncClient(transport=httpx.MockTransport(openai))
+    return gateway
+
+
+async def test_openai_first_does_not_touch_gemini_when_it_works(no_waiting):
+    def gemini(request):
+        raise AssertionError("Gemini was called")
+
+    gateway = openai_first(gemini, lambda r: openai_reply('{"value": 1}'))
+    result = await gateway.structured("extract", "prompt", Answer, FakeBudget())
+    assert result.value == 1
+
+
+async def test_openai_first_falls_back_to_gemini(no_waiting):
+    budget = FakeBudget()
+    gateway = openai_first(
+        lambda r: gemini_reply('{"value": 2}'), lambda r: httpx.Response(500, json={})
+    )
+    result = await gateway.structured("extract", "prompt", Answer, budget)
+    assert result.value == 2
+    assert budget.failovers == [("openai", "gemini", "status 500")]
+
+
+async def test_openai_retries_a_rate_limit(no_waiting):
+    replies = [httpx.Response(429, json={}), openai_reply('{"value": 3}')]
+    gateway = openai_first(lambda r: gemini_reply('{"value": 0}'), lambda r: replies.pop(0))
+    result = await gateway.structured("extract", "prompt", Answer, FakeBudget())
+    assert result.value == 3
+
+
+async def test_openai_out_of_credit_goes_straight_to_gemini(no_waiting):
+    calls = []
+
+    def openai(request):
+        calls.append(1)
+        return httpx.Response(429, json={"error": {"code": "insufficient_quota"}})
+
+    gateway = openai_first(lambda r: gemini_reply('{"value": 4}'), openai)
+    result = await gateway.structured("extract", "prompt", Answer, FakeBudget())
+    assert result.value == 4
+    assert len(calls) == 1
+
+
+async def test_model_that_refuses_temperature_is_asked_again_without_it(no_waiting):
+    bodies = []
+
+    def openai(request):
+        bodies.append(json.loads(request.content))
+        if "temperature" in bodies[-1]:
+            return httpx.Response(400, json={"error": {"param": "temperature"}})
+        return openai_reply('{"value": 5}')
+
+    gateway = openai_first(lambda r: gemini_reply('{"value": 0}'), openai)
+    result = await gateway.structured("extract", "prompt", Answer, FakeBudget())
+    assert result.value == 5
+    assert len(bodies) == 2
+
+
+async def test_openai_first_without_a_key_stays_on_gemini(no_waiting):
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://x",
+        gemini_api_key="g",
+        primary_provider="openai",
+        llm_primary_model="main",
+    )
+    gateway = Gateway(settings)
+    gateway._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda r: gemini_reply('{"value": 6}'))
+    )
+    result = await gateway.structured("extract", "prompt", Answer, FakeBudget())
+    assert result.value == 6

@@ -43,6 +43,7 @@ docker-compose.yml  Caddyfile  .env.example  README.md
 | `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `STORAGE_BUCKET` | Data services |
 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, `SARVAM_API_KEY` | Providers |
 | `LLM_PRIMARY_MODEL`, `LLM_FALLBACK_MODEL`, `OCR_MODEL`, `EMBEDDING_MODEL`, `EMBEDDING_DIM` | Fixed at hour 0 from the providers' live model lists |
+| `PRIMARY_PROVIDER=gemini` | `gemini` or `openai`: tried first for LLM calls and OCR, with the other as the fallback if configured. `LLM_FALLBACK_MODEL` names the OpenAI model either way. Embeddings always use Gemini, because vectors from different models can't be compared |
 | `TTS_MODEL`, `TRANSLATE_MODEL`, `STT_MODEL` | Default `bulbul:v4-flash`, `sarvam-translate:v1`, `saaras:v4` |
 | `MAX_CONCURRENT_RUNS=3`, `MAX_LLM_CALLS=60`, `RUN_TIMEOUT_S=420` | Limits |
 | `LLM_FAST_MODEL` | Used for triage, which only decides whether to carry on |
