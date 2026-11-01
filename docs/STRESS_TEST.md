@@ -37,6 +37,8 @@ Run on 30 October 2026 using a server-side web fetcher, not a browser and probab
 
 **Live test after the phase 2 merge, 1 November 2026:** on the Vercel site, all three inputs, the chooser, refusals, the viewer, refresh and a phone layout worked, once the browser was given the PDF.js files that were missing from the deployment. A 4-page Hindi PDF fetched from `pmkisan.gov.in` through the repaired link resumed and completed after the API was restarted during OCR, and page 1 matched the PDF when read by Claude.
 
+**OpenAI models on real documents, 1 November 2026:** on pages 1 and 2 of the scanned circular, `gpt-5.4` read all four test words correctly in 10 to 22 seconds a page, while `gpt-5.4-mini` got two wrong (`कृष्ण`, `परीक्षण`) in 3 to 7 seconds. On extraction, `gpt-5.4-mini` found the benefit amounts of the Pre-Matric guidelines in one test and missed them in a real run, so a field with no verified claim doesn't prove the document is silent, and the rights card no longer says it does. `gpt-5.4` gave 30 claims with each amount as its own fact, against 24. These comparisons were made by Claude, not a human Hindi reader.
+
 **Connection limit:** Supabase's session pooler allows 15 clients, and they filled up after hard-kill tests, stopping the backend from starting. Use the transaction pooler on port 6543.
 
 **Sarvam cost estimate:** a 1,500-character explainer costs about ₹3 to translate and ₹1.50 to speak with v4-flash, or ₹4.50 per language, excluding GST. The free ₹100 covers roughly 20 runs before testing and retries, hence the ₹500 top-up.

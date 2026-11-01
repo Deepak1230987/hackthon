@@ -128,17 +128,17 @@ export function RightsCard({
         <div className="mt-4 rounded-md border border-line bg-surface px-3 py-2 text-sm">
           <h3 className="font-semibold">
             {status === "completed"
-              ? "Not stated in this document"
+              ? "We didn't find these in this document"
               : "Not confirmed in this run"}
           </h3>
           <p className="mt-0.5 text-muted">
             {missing.map((f) => f.label).join(" · ")}
           </p>
-          {status !== "completed" && (
-            <p className="mt-1 text-muted">
-              This run ended early, so the document may still cover these.
-            </p>
-          )}
+          <p className="mt-1 text-muted">
+            {status === "completed"
+              ? "This check can miss things, so the document may still cover them. Look through the clauses below, or ask the issuing office."
+              : "This run ended early, so the document may still cover these."}
+          </p>
         </div>
       )}
     </section>

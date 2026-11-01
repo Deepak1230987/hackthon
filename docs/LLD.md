@@ -576,7 +576,7 @@ type RunView = {
 |---|---|
 | `SourceInput` | URL, upload and library tabs; language picker; privacy notice |
 | `AgentTrace` | Node timeline, with rejections and failovers kept visible |
-| `RightsCard` | Grouped by field, source link per claim, "not stated" shown explicitly |
+| `RightsCard` | Grouped by field, source link per claim. Fields with no verified claim are shown as not found, with a warning that the check can miss things, because that doesn't prove the document is silent |
 | `EligibilityPanel` | One question at a time, mic or typed, confirmation, skip, per-criterion result |
 | `AudioPlayer` | Starts on tap, plays clips in sequence, skips flagged sentences visibly, English toggle, speed control |
 | `PdfViewer` | PDF.js; draws `bbox` highlights; for OCR clauses shows the page and quote panel; on mobile opens as a sheet |
