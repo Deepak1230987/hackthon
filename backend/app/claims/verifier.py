@@ -34,7 +34,12 @@ def _comparable(text: str) -> str:
     return _DASHES.sub("-", text)
 
 
-def check_claim(claim_text: str, quote: str | None, cited: list[CitedClause]) -> str | None:
+def check_claim(
+    claim_text: str,
+    quote: str | None,
+    cited: list[CitedClause],
+    numbers_within_clauses: bool = False,
+) -> str | None:
     """The reason code checks reject this claim, or None if only entailment is left to judge.
 
     A failure here can't be overruled by any LLM.
@@ -55,6 +60,9 @@ def check_claim(claim_text: str, quote: str | None, cited: list[CitedClause]) ->
     elif normal_quote not in source:
         return "QUOTE_NOT_IN_SOURCE"
 
-    if not numbers.is_subset(numbers.parse(claim_text), numbers.parse(quote or "")):
+    # Q&A asks for less: a full answer often joins figures from a table row or sentence that a
+    # short quote leaves out. Each must still be in the cited clauses, and entailment still follows.
+    allowed = numbers.parse(source if numbers_within_clauses else quote or "")
+    if not numbers.is_subset(numbers.parse(claim_text), allowed):
         return "NUMBER_NOT_IN_QUOTE"
     return None

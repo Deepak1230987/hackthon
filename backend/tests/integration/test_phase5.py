@@ -317,3 +317,83 @@ async def test_queue_position_counts_the_runs_ahead(client, app, gateway):
         )
         await session.commit()
     assert (await client.get(f"/v1/runs/{later_id}")).json()["queue_position"] is None
+
+
+async def test_a_correct_answer_with_a_bad_quote_gets_a_second_try(client, gateway):
+    run_id = await finished_run(client, "second try")
+    gateway.replies["qa"] = [grounded(quote="words that are not in the clause"), grounded()]
+    gateway.sarvam.translations[ANSWER] = HINDI
+    before = len(gateway.prompts.get("qa", []))
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is False
+    assert body["answer"] == HINDI
+    prompts = gateway.prompts["qa"][before:]
+    assert len(prompts) == 2
+    assert "failed an automatic check" not in prompts[0]
+    assert "failed an automatic check" in prompts[1]
+
+
+async def test_an_answer_that_fails_twice_is_still_never_shown(client, gateway):
+    run_id = await finished_run(client, "fails twice")
+    bad = grounded(quote="words that are not in the clause")
+    gateway.replies["qa"] = [bad, bad]
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is True
+    assert body["citations"] == []
+
+
+async def test_abstention_costs_no_second_try(client, gateway):
+    run_id = await finished_run(client, "no second try")
+    gateway.replies["qa"] = [GroundedAnswer(answer=None)]
+    before = len(gateway.prompts.get("qa", []))
+    await ask(client, run_id, "Who won the cricket match?")
+    assert len(gateway.prompts["qa"]) == before + 1
+
+
+async def test_clauses_beside_a_match_reach_the_model(client, gateway):
+    document = pymupdf.open()
+    page = document.new_page()
+    for line in range(30):
+        page.insert_text((72, 40 + line * 24), f"{line + 1}. Rule number {line + 1} of the scheme.")
+    run_id = (await wait_for_end(client, await upload(client, document.tobytes())))["id"]
+    gateway.replies["qa"] = [GroundedAnswer(answer=None)]
+    await ask(client, run_id)
+    sent = gateway.prompts["qa"][-1].count("Rule number")
+    assert sent > 12
+
+
+async def test_an_answer_not_in_english_is_asked_for_again(client, gateway):
+    run_id = await finished_run(client, "hindi answer")
+    gateway.replies["qa"] = [grounded(answer="हर छात्र को Rs. 12,000 मिलते हैं।"), grounded()]
+    gateway.sarvam.translations[ANSWER] = HINDI
+    before = len(gateway.prompts.get("qa", []))
+    body = (await ask(client, run_id, "मुझे कितना मिलेगा?")).json()
+    assert body["abstained"] is False
+    assert body["answer_en"] == ANSWER
+    assert body["answer"] == HINDI
+    assert "wasn't in English" in gateway.prompts["qa"][before + 1]
+
+
+async def test_an_answer_never_in_english_is_not_shown(client, gateway):
+    run_id = await finished_run(client, "always hindi")
+    hindi = grounded(answer="हर छात्र को Rs. 12,000 मिलते हैं।")
+    gateway.replies["qa"] = [hindi, hindi]
+    body = (await ask(client, run_id, "मुझे कितना मिलेगा?")).json()
+    assert body["abstained"] is True
+
+
+async def test_an_answer_may_use_a_number_from_its_clause_beyond_the_quote(client, gateway):
+    # From a real table: "Rs. 525 for 10 months", quoting only "Hostelers: 525; 5250".
+    run_id = await finished_run(client, "beyond the quote")
+    gateway.replies["qa"] = [grounded(answer="Each student gets Rs. 12,000.", quote="selected student")]
+    gateway.sarvam.translations["Each student gets Rs. 12,000."] = "हर छात्र को 12,000 रुपये मिलते हैं।"
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is False
+
+
+async def test_an_answer_with_a_number_outside_its_clauses_is_never_shown(client, gateway):
+    run_id = await finished_run(client, "invented number")
+    wrong = grounded(answer="Each student gets Rs. 15,000.", quote="selected student")
+    gateway.replies["qa"] = [wrong, wrong]
+    body = (await ask(client, run_id)).json()
+    assert body["abstained"] is True
