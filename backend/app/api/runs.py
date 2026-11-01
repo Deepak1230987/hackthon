@@ -7,12 +7,14 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
+from app.api import eligibility
 from app.api.errors import ApiError
 from app.claims.schemas import CLAIM_FIELDS
 from app.db.models import Claim, Clause, Document, Run, RunEvent
 from app.graph.events import is_terminal
 
 router = APIRouter(prefix="/v1")
+router.include_router(eligibility.router)
 
 HEARTBEAT_S = 15
 
@@ -27,8 +29,9 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
         document = await session.get(Document, run.document_id) if run.document_id else None
         events = await services.deps.events.since(session, run_id, 0)
         claims = await _verified_claims(session, run_id)
+        eligibility_fields = await eligibility.eligibility_view(session, run, events)
 
-    error = next((e.payload["error"] for e in events if "error" in e.payload), None)
+    error =next((e.payload["error"] for e in events if "error" in e.payload), None)
     return {
         "id": str(run.id),
         "status": run.status,
@@ -40,6 +43,7 @@ async def get_run(run_id: uuid.UUID, request: Request) -> dict:
             field for field in CLAIM_FIELDS if not any(c["field"] == field for c in claims)
         ],
         "events": [{"seq": e.seq, "type": e.type, "payload": e.payload} for e in events],
+        **eligibility_fields,
     }
 
 

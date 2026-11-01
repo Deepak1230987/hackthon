@@ -372,9 +372,11 @@ class FieldDef(BaseModel):
 ```
 
 - **Registry:** `age`, `gender`, `state`, `district`, `annual_income_inr`, `occupation`, `social_category`, `land_holding_hectares`, `business_turnover_inr`, `employee_count`, `is_bpl`, `is_student`, `has_disability`.
-- **Document-specific fields:** the compiler may add one with a generated question.
+- **Document-specific fields:** not built. A condition outside the registry becomes `Unevaluable`.
 - **Validation:** answers are checked against type and range, so an age of 300 gets a re-ask.
-- **Rule checks:** Pydantic validates the AST, unknown fields are rejected, and each rule must link to a verified claim. Any compile failure becomes `Unevaluable(claim.text)`.
+- **Rule checks:** Pydantic validates the AST, unknown fields are rejected, and each rule must link to a verified claim. A numeric threshold must appear in the claim's text. `district` is never compiled into a rule, because a spelling difference would wrongly fail someone. Any compile failure becomes `Unevaluable(claim.text)`.
+- **Alternatives:** the compiler marks claims where any one is enough, such as "SC applicants qualify" and "ST applicants qualify". Each keeps its own row in `rules`, holding the whole `or`, so the verdict still cites every claim.
+- **No rules:** a document with no eligibility claims gives `CANNOT_DETERMINE`, never `MEETS_STATED_CRITERIA`.
 
 ### 8.4 Next question
 
@@ -395,16 +397,15 @@ A transcript goes through an LLM that returns `{field, value, confidence}` under
 
 ### 9.1 Script
 
-The prompt receives verified claims with IDs and the verdict, and returns:
+The prompt receives verified claims by index, and returns:
 
 ```python
 class ScriptSentence(BaseModel):
     text: str = Field(max_length=220)
-    claim_ids: list[str] = Field(min_length=1)
-    kind: Literal["fact","verdict","action","not_stated"]
+    claim_indexes: list[int] = Field(min_length=1)
 ```
 
-Code checks that claim IDs exist and that all numbers are in the cited claims. Sentences that fail are dropped, or the script is regenerated once. Fixed strings such as the not-legal-advice notice aren't sent through this check.
+Code checks that the claims exist and that all numbers are in the cited claims. If any sentence fails, the script is regenerated once with the reasons, and sentences that still fail are dropped. The prompt never sees the verdict. The verdict sentence is fixed text chosen by code and stored at ordinal 0, citing the claims behind the outcome, so no LLM can reword a result. With no eligibility claim there is nothing to cite, so that sentence is left out and the UI shows the outcome from `verdict`. Fixed strings such as the not-legal-advice notice aren't sent through this check.
 
 **Style:** under 18 words a sentence where possible, no legal jargon, and order of verdict, benefit, what to do, documents, deadline, who to contact. The citizen's own values never appear.
 
@@ -477,7 +478,7 @@ Limits: 500 characters per question and 20 questions per run.
 | `GET /v1/documents/{id}/clauses` | | `{clauses: [{id, ordinal, page, bbox, text, lang, kind, extraction}], failed_pages}`. `page` is 1-based. `bbox` is `[x0, y0, x1, y1]` in PDF points from the top left, or `null` for OCR |
 | `GET /v1/runs/{id}` | | Full run view, also the polling fallback. Adds `claims: [{id, field, text, quote, clauses: [{id, ordinal, page, bbox, extraction}]}]`, verified claims only, and `not_stated: [field]` |
 | `GET /v1/runs/{id}/events` | `Last-Event-ID` | SSE stream |
-| `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}` |
+| `POST /v1/runs/{id}/answers` | `{answers: {field: value}}`, or `{skip: [field]}` | `200 {status}`. `400 INVALID_ANSWER` with `details.fields` keeps the run waiting, and `409 NOT_WAITING_FOR_INPUT` means it isn't waiting |
 | `POST /v1/runs/{id}/stt` | Multipart audio, `field` | `{transcript, parsed, confidence}` |
 | `POST /v1/runs/{id}/qa` | `{question, language}` | `{answer, citations, audio_url, abstained}` |
 | `POST /v1/runs/{id}/page-range` | `{from, to}` | `202` |
@@ -540,15 +541,15 @@ The frontend builds the trace only from these events, so a refresh, an SSE repla
 | `claim_rejected` | `{claim_id, reason, attempt}` | |
 | `retry` | `{reason, attempt}` | |
 | `rules_compiled` | `{count}` | |
-| `needs_input` | `{field}` | Field name only |
-| `verdict` | `{outcome}` | Never input values |
+| `needs_input` | `{field}` | Field name only. The run then goes to `waiting_input`, and `question` in `GET /v1/runs/{id}` has the wording and options |
+| `verdict` | `{outcome, met, failed, unknown}` | The last three are claim IDs. Never input values |
 | `script_ready` | `{sentences}` | Sentence count |
 | `sentence_translated` | `{sentence_id, translator}` | |
 | `failover` | `{from, to, reason}` | |
 | `guard_failed` | `{sentence_id, reason, attempt}` | |
 | `sentence_ready` | `{sentence_id}` | |
 
-`GET /v1/runs/{id}` returns `{id, status, document, error, events: [{seq, type, payload}]}`, with `document` as `null` until acquired and every event so far in `events`. The polling fallback feeds this into the same reducer. The API must allow `ALLOWED_ORIGINS` through CORS on all routes, and an unknown run returns 404 with `RUN_NOT_FOUND`.
+`GET /v1/runs/{id}` returns `{id, status, document, error, events: [{seq, type, payload}]}`, with `document` as `null` until acquired and every event so far in `events`. It also returns `question` (`{name, type, options, min, max, question_en, unit}`, or `null` unless `waiting_input`), `verdict` (the latest `verdict` payload, or `null`) and `sentences` (`[{id, ordinal, language, source_text, translated_text, claim_ids, audio_path, guard_status}]`). The polling fallback feeds this into the same reducer. The API must allow `ALLOWED_ORIGINS` through CORS on all routes, and an unknown run returns 404 with `RUN_NOT_FOUND`.
 
 ## 13. Frontend
 
