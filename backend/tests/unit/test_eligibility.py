@@ -266,3 +266,34 @@ def test_profile_expires_and_merge_refreshes(monkeypatch):
     assert store.get("r") == {}
     store.purge_expired()
     assert store._entries == {}
+
+
+def test_exclusion_is_inverted_by_code():
+    # From a real run on the PM-Kisan FAQ, where a farmer with 1 hectare was told they didn't qualify.
+    from app.eligibility.ast import Not
+    from app.eligibility.interpreter import DOES_NOT_MEET, MEETS, CompiledRule, decide
+    from app.graph.nodes.compile_rules import parse_rule
+
+    raw = '{"type": "cmp", "field": "land_holding_hectares", "op": "gt", "value": 2}'
+    text = "Any family owning more than 2 hectare of land will not receive any benefit."
+    expr = parse_rule(raw, text, excludes=True)
+    assert isinstance(expr, Not)
+    rules = [CompiledRule("c", expr)]
+    assert decide(rules, {"land_holding_hectares": 1}).outcome == MEETS
+    assert decide(rules, {"land_holding_hectares": 2}).outcome == MEETS
+    assert decide(rules, {"land_holding_hectares": 3}).outcome == DOES_NOT_MEET
+
+
+def test_a_rule_that_does_not_parse_stays_unevaluable_when_excluding():
+    from app.eligibility.ast import Unevaluable
+    from app.graph.nodes.compile_rules import parse_rule
+
+    assert isinstance(parse_rule("not json", "Some claim.", excludes=True), Unevaluable)
+
+
+def test_one_long_quote_does_not_lose_the_whole_reply():
+    # From the same run: a 752 character quote failed all 21 claims.
+    from app.claims.schemas import ExtractionResult
+
+    claim = {"field": "benefit", "text": "A fact.", "clause_ordinals": [1], "quote": "q" * 752}
+    assert len(ExtractionResult.model_validate({"claims": [claim]}).claims) == 1

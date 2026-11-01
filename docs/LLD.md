@@ -375,6 +375,7 @@ class FieldDef(BaseModel):
 - **Registry:** `age`, `gender`, `state`, `district`, `annual_income_inr`, `occupation`, `social_category`, `land_holding_hectares`, `business_turnover_inr`, `employee_count`, `is_bpl`, `is_student`, `has_disability`.
 - **Document-specific fields:** not built. A condition outside the registry becomes `Unevaluable`.
 - **Validation:** answers are checked against type and range, so an age of 300 gets a re-ask.
+- **Exclusions:** the model writes each condition as the claim states it and sets `excludes`, and code wraps it in `not`. A model told to invert exclusions itself compiled "more than 2 hectares get nothing" as `land > 2` on a real scheme, which told a farmer with 1 hectare they didn't qualify.
 - **Rule checks:** Pydantic validates the AST, unknown fields are rejected, and each rule must link to a verified claim. A numeric threshold must appear in the claim's text. `district` is never compiled into a rule, because a spelling difference would wrongly fail someone. Any compile failure becomes `Unevaluable(claim.text)`.
 - **Alternatives:** the compiler marks claims where any one is enough, such as "SC applicants qualify" and "ST applicants qualify". Each keeps its own row in `rules`, holding the whole `or`, so the verdict still cites every claim.
 - **No rules:** a document with no eligibility claims gives `CANNOT_DETERMINE`, never `MEETS_STATED_CRITERIA`.

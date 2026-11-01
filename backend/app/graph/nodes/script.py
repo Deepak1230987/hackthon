@@ -24,7 +24,8 @@ VERDICT_TEXT = {
 
 
 class ScriptSentence(BaseModel):
-    text: str = Field(max_length=220)
+    # Well above the 18 words the prompt asks for, so one long sentence can't cost the whole script.
+    text: str = Field(max_length=500)
     claim_indexes: list[int] = Field(min_length=1)
 
 

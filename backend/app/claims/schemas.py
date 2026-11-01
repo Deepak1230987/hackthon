@@ -17,11 +17,17 @@ class TriageResult(BaseModel):
     issue_date: str | None = None  # YYYY-MM-DD
 
 
+# Hard limits, well above what the prompts ask for. One long quote must not throw away every
+# other claim in a reply and pay for it all again. The verifier still checks each quote.
+MAX_CLAIM_CHARS = 600
+MAX_QUOTE_CHARS = 2000
+
+
 class CandidateClaim(BaseModel):
     field: ClaimField
-    text: str = Field(max_length=300)  # one atomic fact in plain English
+    text: str = Field(max_length=MAX_CLAIM_CHARS)  # one atomic fact in plain English
     clause_ordinals: list[int] = Field(min_length=1, max_length=3)
-    quote: str = Field(max_length=500)  # verbatim, in the source language
+    quote: str = Field(max_length=MAX_QUOTE_CHARS)  # verbatim, in the source language
 
 
 class ExtractionResult(BaseModel):
@@ -30,9 +36,9 @@ class ExtractionResult(BaseModel):
 
 class RepairedClaim(BaseModel):
     index: int
-    text: str = Field(max_length=300)
+    text: str = Field(max_length=MAX_CLAIM_CHARS)
     clause_ordinals: list[int] = Field(min_length=1, max_length=3)
-    quote: str = Field(max_length=500)
+    quote: str = Field(max_length=MAX_QUOTE_CHARS)
 
 
 class RepairResult(BaseModel):
